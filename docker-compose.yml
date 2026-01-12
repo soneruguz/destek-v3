@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: destek_db
+      POSTGRES_USER: destek_user
+      POSTGRES_PASSWORD: destek_pass
+      TZ: Europe/Istanbul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - destek_network
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: destek-backend-1
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Istanbul
+      - UPLOAD_DIR=/app/uploads
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3005,http://192.168.0.75:3005,https://destek.tesmer.org.tr
+    extra_hosts:
+      - "tesmer.local:192.168.0.13"
+    depends_on:
+      - db
+    networks:
+      - destek_network
+
+  frontend:
+    build: ./frontend
+    container_name: destek-frontend-1
+    ports:
+      - "3005:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WDS_SOCKET_PORT=0
+      - WATCHPACK_POLLING=true
+      - TZ=Europe/Istanbul
+    networks:
+      - destek_network
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+
+networks:
+  destek_network:
+    driver: bridge

@@ -1,0 +1,48 @@
+/* quill-better-table için CSS stilleri */
+.ql-container {
+  font-size: 1rem;
+  height: auto;
+}
+
+.ql-toolbar {
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
+}
+
+.ql-container {
+  border-bottom-left-radius: 0.25rem;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.quill-better-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quill-better-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+
+.quill-better-table th {
+  background-color: #f3f4f6;
+  border: 1px solid #ccc;
+  padding: 8px;
+  font-weight: bold;
+}
+
+/* Tablo seçimi için vurgulama */
+.qlbt-selection-handle {
+  background-color: rgba(53, 126, 221, 0.1);
+}
+
+/* Tablo düzenleme araçları */
+.qlbt-operation-menu {
+  border-radius: 0.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Tablo seçim vurgusu */
+.qlbt-selection {
+  background-color: rgba(53, 126, 221, 0.08);
+}

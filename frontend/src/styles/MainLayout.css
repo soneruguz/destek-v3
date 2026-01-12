@@ -1,0 +1,114 @@
+.main-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background-color: var(--dark-blue);
+  color: var(--white);
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.menu-toggle {
+  background: transparent;
+  border: none;
+  color: var(--white);
+  font-size: 1.5rem;
+  cursor: pointer;
+  margin-right: 15px;
+  padding: 5px;
+}
+
+.site-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 500;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.welcome {
+  margin-right: 15px;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--white);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.content-container {
+  display: flex;
+  flex: 1;
+}
+
+.sidebar {
+  background-color: var(--white);
+  width: 250px;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.sidebar.closed {
+  width: 0;
+  overflow: hidden;
+}
+
+.main-nav {
+  padding: 20px 0;
+}
+
+.main-nav ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.main-nav a {
+  display: flex;
+  align-items: center;
+  padding: 12px 20px;
+  color: var(--text-dark);
+  transition: all 0.3s;
+}
+
+.main-nav a:hover {
+  background-color: var(--very-light-blue);
+  text-decoration: none;
+}
+
+.main-nav a.active {
+  background-color: var(--light-blue);
+  color: var(--dark-blue);
+  font-weight: 500;
+}
+
+.icon {
+  margin-right: 10px;
+}
+
+.main-content {
+  flex: 1;
+  padding: 25px;
+  overflow-y: auto;
+}

@@ -1,0 +1,48 @@
+import axios from 'axios';
+import { API_ROUTES } from '../config/apiConfig';
+
+// Combined container - her zaman relative /api path kullan
+const API_BASE_URL = '/api';
+
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,  // 30s - dosya yüklemesi için yeterli
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Request interceptor
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token && token !== 'undefined') {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Don't force Content-Type - let each request set its own
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Only logout on 401 if we're trying to access protected routes
+    if (error.response?.status === 401) {
+      const currentPath = window.location.pathname;
+      // Don't logout if we're already on login page or during login attempt
+      if (currentPath !== '/auth/login' && !currentPath.includes('/login')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/auth/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default axiosInstance;
