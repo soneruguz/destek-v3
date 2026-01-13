@@ -36,8 +36,7 @@ def create_department(
 
 @router.get("/", response_model=List[schemas.Department])
 def get_departments(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
     departments = db.query(models.Department).all()
     return [schemas.Department.from_orm(d) for d in departments]
@@ -45,8 +44,7 @@ def get_departments(
 @router.get("/{department_id}", response_model=schemas.Department)
 def get_department(
     department_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
     department = db.query(models.Department).filter(models.Department.id == department_id).first()
     if not department:

@@ -68,7 +68,6 @@ def create_user(
 @router.get("/", response_model=List[schemas.User])
 def get_users(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user),
     include_ldap: bool = True,
     active_only: bool = False
 ):
