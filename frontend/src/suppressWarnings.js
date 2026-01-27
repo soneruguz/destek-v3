@@ -5,7 +5,7 @@ const originalInfo = console.info;
 
 console.warn = (...args) => {
   const message = args[0];
-  
+
   // React Router uyarılarını gizle
   if (typeof message === 'string' && (
     message.includes('React Router Future Flag Warning') ||
@@ -17,7 +17,7 @@ console.warn = (...args) => {
   )) {
     return;
   }
-  
+
   originalWarn.apply(console, args);
 };
 
@@ -34,7 +34,7 @@ console.info = (...args) => {
 
 console.error = (...args) => {
   const message = args[0];
-  
+
   // Belirli hataları gizle
   if (typeof message === 'string' && (
     message.includes('Warning: findDOMNode') ||
@@ -46,26 +46,26 @@ console.error = (...args) => {
     message.includes('Error updating ticket status') ||
     message.includes('Error fetching user departments') ||
     message.includes('AxiosError') ||
-    message.includes('PUT http://192.168.0.75:8001/tickets') ||
+    message.includes('PUT http://devdestekapi.tesmer.org.tr/tickets') ||
     message.includes('/users/') && message.includes('/departments') ||
     message.includes('403 (Forbidden)') ||
     message.includes('Attachments response') ||
     message.includes('Resim yüklendi') ||
-    message.includes('API_BASE_URL = http://192.168.0.75:8001')
+    message.includes('API_BASE_URL = http://devdestekapi.tesmer.org.tr')
   )) {
     return;
   }
-  
+
   // Quill.js hatalarını gizleme - bunlar önemli olabilir
   // Sadece React uyarılarını gizle
-  
+
   originalError.apply(console, args);
 };
 
 // Quill.js'den gelen deprecation uyarılarını yakalayalım
 if (typeof window !== 'undefined') {
   const originalAddEventListener = EventTarget.prototype.addEventListener;
-  EventTarget.prototype.addEventListener = function(type, listener, options) {
+  EventTarget.prototype.addEventListener = function (type, listener, options) {
     if (type === 'DOMNodeInserted') {
       // DOMNodeInserted event'ini sessizce geç
       return;

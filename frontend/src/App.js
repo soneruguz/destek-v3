@@ -26,6 +26,8 @@ import WikiDetailPage from './pages/WikiDetail';
 import WikiCreatePage from './pages/WikiCreate';
 // Login logs sayfası
 import LoginLogsPage from './pages/LoginLogs';
+import ReportsPage from './pages/Reports';
+import NotificationsPage from './pages/Notifications';
 
 function App() {
   const { user, isLoading } = useAuth();
@@ -47,6 +49,7 @@ function App() {
                 <Route path="/tickets/new" element={<NewTicketPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 {/* Wiki routes */}
                 <Route path="/wikis" element={<WikiListPage />} />
                 <Route path="/wikis/new" element={<WikiCreatePage />} />
@@ -56,7 +59,9 @@ function App() {
                     <Route path="/departments" element={<DepartmentsPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/settings" element={<SystemSettingsPage />} />
+                    <Route path="/settings" element={<SystemSettingsPage />} />
                     <Route path="/login-logs" element={<LoginLogsPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
                   </>
                 )}
                 <Route path="*" element={<NotFoundPage />} />

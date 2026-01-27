@@ -28,7 +28,11 @@ services:
     environment:
       - TZ=Europe/Istanbul
       - UPLOAD_DIR=/app/uploads
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:3005,http://192.168.0.75:3005,https://destek.tesmer.org.tr
+      - LDAP_HOST=tesmer.local
+      - LDAP_PORT=389
+      - LDAP_BASE_DN=OU=TesmerUser,DC=tesmer,DC=local
+      - LDAP_BIND_DN=CN=Ldap reader,OU=TesmerUser,DC=tesmer,DC=local
+      - LDAP_BIND_PASSWORD=S160682u*
     extra_hosts:
       - "tesmer.local:192.168.0.13"
     depends_on:
@@ -41,15 +45,9 @@ services:
     container_name: destek-frontend-1
     ports:
       - "3005:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     env_file:
       - .env
     environment:
-      - CHOKIDAR_USEPOLLING=true
-      - WDS_SOCKET_PORT=0
-      - WATCHPACK_POLLING=true
       - TZ=Europe/Istanbul
     networks:
       - destek_network

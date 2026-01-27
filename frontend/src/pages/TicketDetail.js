@@ -11,7 +11,7 @@ const TicketDetail = () => {
   const { id } = useParams();
   const { addToast } = useToast();
   const { user } = useAuth();
-  
+
   const [ticket, setTicket] = useState(null);
   const [comments, setComments] = useState([]);
   const [users, setUsers] = useState([]);
@@ -21,12 +21,12 @@ const TicketDetail = () => {
   const [attachments, setAttachments] = useState([]);
   const [systemConfig, setSystemConfig] = useState({ max_file_size_mb: 10 });
   const [showFileUpload, setShowFileUpload] = useState(false);
-  
+
   const [commentText, setCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareData, setShareData] = useState({
     user_ids: [],
@@ -46,13 +46,13 @@ const TicketDetail = () => {
           axiosInstance.get('/departments/'),
           axiosInstance.get('/settings/').catch(() => ({ data: { general: { max_file_size_mb: 10 } } }))
         ]);
-        
+
         setTicket(ticketRes.data);
         setComments(commentsRes.data || []);
         setUsers(usersRes.data);
         setDepartments(deptsRes.data);
         setSystemConfig(configRes.data?.general || { max_file_size_mb: 10 });
-        
+
         // Dosya eklerini de getir
         try {
           const attachmentsRes = await axiosInstance.get(`/tickets/${id}/attachments/`);
@@ -60,13 +60,13 @@ const TicketDetail = () => {
         } catch (err) {
           setAttachments([]);
         }
-        
+
         try {
           const [sharedUsersRes, sharedDeptsRes] = await Promise.all([
             axiosInstance.get(`/tickets/${id}/shared_users/`),
             axiosInstance.get(`/tickets/${id}/shared_departments/`)
           ]);
-          
+
           setSharedUsers(sharedUsersRes.data || []);
           setSharedDepartments(sharedDeptsRes.data || []);
         } catch (err) {
@@ -105,14 +105,14 @@ const TicketDetail = () => {
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
     if (!commentText.trim()) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       const response = await axiosInstance.post(`/tickets/${id}/comments/`, {
         content: commentText
       });
-      
+
       setComments([...comments, response.data]);
       setCommentText('');
       addToast('Yorum başarıyla eklendi', 'success');
@@ -132,11 +132,11 @@ const TicketDetail = () => {
   const handleAssigneeChange = async (userId) => {
     try {
       const assigneeId = userId === "" ? null : parseInt(userId);
-      
-      const response = await axiosInstance.put(`/tickets/${id}`, { 
-        assignee_id: assigneeId 
+
+      const response = await axiosInstance.put(`/tickets/${id}`, {
+        assignee_id: assigneeId
       });
-      
+
       setTicket(response.data);
       addToast('Atanan kişi başarıyla güncellendi', 'success');
     } catch (err) {
@@ -145,18 +145,34 @@ const TicketDetail = () => {
     }
   };
 
+  const handleDepartmentChange = async (deptId) => {
+    try {
+      const departmentId = deptId === "" ? null : parseInt(deptId);
+
+      const response = await axiosInstance.put(`/tickets/${id}`, {
+        department_id: departmentId
+      });
+
+      setTicket(response.data);
+      addToast('Birim başarıyla güncellendi', 'success');
+    } catch (err) {
+      console.error('Error updating department:', err);
+      addToast('Birim güncellenirken bir hata oluştu', 'error');
+    }
+  };
+
   const handleShareSubmit = async () => {
     try {
       await axiosInstance.post(`/tickets/${id}/share`, shareData);
-      
+
       const [sharedUsersRes, sharedDeptsRes] = await Promise.all([
         axiosInstance.get(`/tickets/${id}/shared_users`),
         axiosInstance.get(`/tickets/${id}/shared_departments`)
       ]);
-      
+
       setSharedUsers(sharedUsersRes.data || []);
       setSharedDepartments(sharedDeptsRes.data || []);
-      
+
       setShowShareModal(false);
       addToast('Talep başarıyla paylaşıldı', 'success');
     } catch (err) {
@@ -236,13 +252,12 @@ const TicketDetail = () => {
                       Gizli Talep
                     </span>
                   )}
-                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    ticket.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                  <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.status === 'open' ? 'bg-blue-100 text-blue-800' :
                     ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
+                      'bg-green-100 text-green-800'
+                    }`}>
                     {ticket.status === 'open' ? 'Açık' :
-                     ticket.status === 'in_progress' ? 'İşlemde' : 'Kapalı'}
+                      ticket.status === 'in_progress' ? 'İşlemde' : 'Kapalı'}
                   </span>
                 </div>
               </div>
@@ -263,7 +278,7 @@ const TicketDetail = () => {
                   {showFileUpload ? 'Gizle' : 'Dosya Ekle'}
                 </button>
               </div>
-              
+
               {showFileUpload && (
                 <div className="mb-4">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
@@ -284,11 +299,11 @@ const TicketDetail = () => {
                             multiple
                             onChange={async (e) => {
                               const files = Array.from(e.target.files || []);
-                              
+
                               for (const file of files) {
                                 const formData = new FormData();
                                 formData.append('file', file);
-                                
+
                                 try {
                                   const response = await axiosInstance.post(
                                     `/tickets/${id}/attachments/`,
@@ -299,19 +314,19 @@ const TicketDetail = () => {
                                       }
                                     }
                                   );
-                                  
+
                                   addToast(`${file.name} başarıyla yüklendi`, 'success');
-                                  
+
                                   // Dosya listesini yenile
                                   const attachmentsRes = await axiosInstance.get(`/tickets/${id}/attachments/`);
                                   setAttachments(attachmentsRes.data || []);
-                                  
+
                                 } catch (error) {
                                   console.error('Dosya yükleme hatası:', error);
                                   addToast(`${file.name} yüklenirken hata oluştu`, 'error');
                                 }
                               }
-                              
+
                               // Input'u temizle
                               e.target.value = '';
                             }}
@@ -325,18 +340,18 @@ const TicketDetail = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Basit dosya listesi */}
               <div className="space-y-3">
-                {attachments.length > 0 ? 
+                {attachments.length > 0 ?
                   attachments.map((file, index) => (
                     <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-primary-400 transition-colors">
                       <div className="flex items-center space-x-4 flex-1">
                         {/* ÖN İZLEME ALANI */}
                         {file.preview_url ? (
                           <div className="relative group">
-                            <img 
-                              src={`${API_URL}${file.preview_url}`} 
+                            <img
+                              src={`${API_URL}${file.preview_url}`}
                               alt={file.filename}
                               className="h-20 w-20 object-cover rounded-md cursor-pointer hover:shadow-xl hover:scale-110 transition-all duration-200 border-2 border-primary-200"
                               onClick={() => {
@@ -347,7 +362,7 @@ const TicketDetail = () => {
                                 console.error('Resim yüklenemedi:', `${API_URL}${file.preview_url}`, e);
                                 e.target.style.display = 'none';
                               }}
-                              onLoad={() => {}}
+                              onLoad={() => { }}
                               title="Büyütmek için tıklayın"
                             />
                             <div className="absolute -top-8 left-0 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -377,12 +392,12 @@ const TicketDetail = () => {
                       </div>
                     </div>
                   ))
-                  : 
+                  :
                   <p className="text-gray-500 text-center py-4">Henüz dosya eklenmemiş</p>
                 }
               </div>
             </div>
-            
+
             {(ticket.teos_id || ticket.citizenship_no) && (
               <div className="border-t border-gray-200 px-4 py-5 sm:p-6 bg-gray-50">
                 <h4 className="text-sm font-medium text-gray-500 mb-2">Ek Bilgiler</h4>
@@ -440,7 +455,7 @@ const TicketDetail = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
               <h4 className="text-sm font-medium text-gray-500 mb-3">Yeni Yorum Ekle</h4>
               <form onSubmit={handleCommentSubmit}>
@@ -488,15 +503,14 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Öncelik</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ticket.priority === 'low' ? 'bg-green-100 text-green-800' :
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.priority === 'low' ? 'bg-green-100 text-green-800' :
                       ticket.priority === 'medium' ? 'bg-blue-100 text-blue-800' :
-                      ticket.priority === 'high' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
+                        ticket.priority === 'high' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                      }`}>
                       {ticket.priority === 'low' ? 'Düşük' :
-                       ticket.priority === 'medium' ? 'Orta' :
-                       ticket.priority === 'high' ? 'Yüksek' : 'Kritik'}
+                        ticket.priority === 'medium' ? 'Orta' :
+                          ticket.priority === 'high' ? 'Yüksek' : 'Kritik'}
                     </span>
                   </dd>
                 </div>
@@ -507,6 +521,20 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Son Güncelleme</dt>
                   <dd className="mt-1 text-sm text-gray-900">{ticket.updated_at ? new Date(ticket.updated_at).toLocaleString() : 'Güncellenmedi'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Birim</dt>
+                  <dd className="mt-1">
+                    <select
+                      className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                      value={ticket.department_id || ''}
+                      onChange={(e) => handleDepartmentChange(e.target.value)}
+                    >
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Atanan Kişi</dt>
@@ -526,11 +554,10 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Talep Türü</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ticket.is_personal 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-purple-100 text-purple-800'
-                    }`}>
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.is_personal
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-purple-100 text-purple-800'
+                      }`}>
                       {ticket.is_personal ? 'Kişisel Talep' : 'Departman Talebi'}
                     </span>
                   </dd>
@@ -538,11 +565,10 @@ const TicketDetail = () => {
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Gizlilik Durumu</dt>
                   <dd className="mt-1 text-sm text-gray-900">
-                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      ticket.is_private 
-                        ? 'bg-red-100 text-red-800' 
-                        : 'bg-green-100 text-green-800'
-                    }`}>
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.is_private
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-green-100 text-green-800'
+                      }`}>
                       {ticket.is_private ? 'Özel Talep' : 'Genel Talep'}
                     </span>
                   </dd>
@@ -600,18 +626,17 @@ const TicketDetail = () => {
                           addToast('Gizlilik durumu güncellenirken bir hata oluştu', 'error');
                         }
                       }}
-                      className={`px-3 py-1 text-xs font-medium rounded-full ${
-                        ticket.is_private 
-                          ? 'bg-red-100 text-red-800 hover:bg-red-200' 
-                          : 'bg-green-100 text-green-800 hover:bg-green-200'
-                      }`}
+                      className={`px-3 py-1 text-xs font-medium rounded-full ${ticket.is_private
+                        ? 'bg-red-100 text-red-800 hover:bg-red-200'
+                        : 'bg-green-100 text-green-800 hover:bg-green-200'
+                        }`}
                     >
                       {ticket.is_private ? 'Gizli' : 'Herkese Açık'}
                     </button>
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    {ticket.is_private 
-                      ? 'Bu talep sadece siz, atanan kişi ve yöneticiler tarafından görüntülenebilir.' 
+                    {ticket.is_private
+                      ? 'Bu talep sadece siz, atanan kişi ve yöneticiler tarafından görüntülenebilir.'
                       : 'Bu talep ilgili departmanlar ve paylaşılan kişiler tarafından görüntülenebilir.'}
                   </p>
                 </div>
@@ -682,7 +707,7 @@ const TicketDetail = () => {
             </div>
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
+
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
@@ -701,9 +726,9 @@ const TicketDetail = () => {
                           className="basic-multi-select"
                           classNamePrefix="select"
                           placeholder="Kullanıcı seçin..."
-                          onChange={(selected) => setShareData(prev => ({ 
-                            ...prev, 
-                            user_ids: selected ? selected.map(item => item.value) : [] 
+                          onChange={(selected) => setShareData(prev => ({
+                            ...prev,
+                            user_ids: selected ? selected.map(item => item.value) : []
                           }))}
                         />
                       </div>
@@ -717,9 +742,9 @@ const TicketDetail = () => {
                           className="basic-multi-select"
                           classNamePrefix="select"
                           placeholder="Departman seçin..."
-                          onChange={(selected) => setShareData(prev => ({ 
-                            ...prev, 
-                            department_ids: selected ? selected.map(item => item.value) : [] 
+                          onChange={(selected) => setShareData(prev => ({
+                            ...prev,
+                            department_ids: selected ? selected.map(item => item.value) : []
                           }))}
                         />
                       </div>
@@ -750,11 +775,11 @@ const TicketDetail = () => {
 
       {/* Image Modal / Lightbox */}
       {showImageModal && selectedImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4"
           onClick={() => setShowImageModal(false)}
         >
-          <div 
+          <div
             className="relative max-w-4xl max-h-screen flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
@@ -768,8 +793,8 @@ const TicketDetail = () => {
             </button>
 
             {/* Görsel */}
-            <img 
-              src={`${API_URL}${selectedImage.preview_url}`} 
+            <img
+              src={`${API_URL}${selectedImage.preview_url}`}
               alt={selectedImage.filename}
               className="max-w-full max-h-screen object-contain rounded-lg shadow-2xl"
             />

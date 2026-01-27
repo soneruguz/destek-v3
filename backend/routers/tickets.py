@@ -124,26 +124,40 @@ def create_ticket(
         # HTML içeriğini temizle
         cleaned_description = clean_html_content(ticket.description)
         
-        # Sistem ayarlarından birim yöneticisi atama kuralını al
+        # Sistem ayarlarını al
         config = db.query(models.GeneralConfig).first()
         require_manager_assignment = config.require_manager_assignment if config else False
         
-        # assignee_id belirle:
-        # 1. Kullanıcı spesifik bir personele atamışsa, o atanır
-        # 2. Spesifik atama yoksa ve require_manager_assignment True ise, birim yöneticisine atanır
-        # 3. Aksi durumda NULL kalır (birim personeline açık)
+        # Triage Logic:
+        # 1. Eğer merkezi yönlendirme aktifse (workflow_enabled):
+        #    a. Eğer merkezi yönlendirici (triage_user) varsa ona ata
+        #    b. Eğer merkezi yönlendirici birim (triage_department) varsa oraya yönlendir
+        # 2. Aktif değilse veya ayar yoksa eski mantık (manager assignment veya spesifik atama)
+        
         assignee_id = ticket.assignee_id
-        if not assignee_id and require_manager_assignment and department.manager_id:
+        target_department_id = ticket.department_id
+        
+        if config and config.workflow_enabled:
+            if config.triage_user_id:
+                assignee_id = config.triage_user_id
+                logger.info(f"Talep merkezi yönlendiriciye atandı: {assignee_id}")
+            elif config.triage_department_id:
+                target_department_id = config.triage_department_id
+                assignee_id = None
+                logger.info(f"Talep merkezi yönlendirme birimine gönderildi: {target_department_id}")
+        
+        # Eğer hala atama değişmemişse veya workflow kapalıysa eski yönetici atama mantığını kontrol et
+        if assignee_id == ticket.assignee_id and require_manager_assignment and department.manager_id:
             assignee_id = department.manager_id
             logger.info(f"Talep birim yöneticisine atandı: {department.manager_id}")
-        
+
         new_ticket = models.Ticket(
             title=ticket.title,
             description=cleaned_description,
             status="open",
             priority=ticket.priority,
             creator_id=current_user.id,
-            department_id=ticket.department_id,
+            department_id=target_department_id,
             assignee_id=assignee_id,
             is_private=ticket.is_private
         )
@@ -161,53 +175,26 @@ def create_ticket(
             joinedload(models.Ticket.assignee)
         ).filter(models.Ticket.id == new_ticket.id).first()
 
-        # Bildirim alıcılarını hazırla
-        from routers.system_settings import (
-            send_ticket_assignment_email,
-            send_ticket_created_to_department_email,
-        )
-
-        recipients = {}
-
-        # Her durumda talebi oluşturan kişi (kendi talebine talep oluşturma maili göndermeyelim)
-        # if created_ticket.creator and created_ticket.creator.email:
-        #     recipients[created_ticket.creator.id] = created_ticket.creator
-
-        # Assignee varsa: sadece ona atama bildirimi
+        # Bildirimleri gönder
+        from utils.notifications import notify_users_about_ticket
+        
+        # Atanan kişiye ve diğer ilgililere bildirim gönder
+        title = f"Yeni Talep: {created_ticket.title}"
+        message = f"{current_user.full_name} tarafından yeni bir talep oluşturuldu."
         if created_ticket.assignee_id:
-            try:
-                assignee = db.query(models.User).filter(models.User.id == created_ticket.assignee_id).first()
-                if assignee and assignee.email:
-                    recipients[assignee.id] = assignee
-                    # Özel atama maili (background task olarak)
-                    background_tasks.add_task(send_ticket_assignment_email, db, created_ticket, assignee)
-            except Exception as e:
-                logger.error(f"Assignee bildirimi gönderilirken hata: {str(e)}")
-        else:
-            # Assignee yoksa: Sistem ayarını kontrol et
-            # require_manager_assignment = False ise → Departman personeline "birime talep açıldı" maili
-            # require_manager_assignment = True ise → Sadece yöneticiye atanmış, department personeline mail yok
-            if not require_manager_assignment and not created_ticket.is_private:
-                try:
-                    dept = db.query(models.Department).options(
-                        joinedload(models.Department.users),
-                        joinedload(models.Department.primary_users)
-                    ).filter(models.Department.id == created_ticket.department_id).first()
-                    if dept:
-                        dept_members = list(dept.users or []) + list(dept.primary_users or [])
-                        for member in dept_members:
-                            if not member.email or member.id == created_ticket.creator_id:
-                                continue
-                            recipients[member.id] = member
-                            # Birime talep açıldı maili (farklı şablon)
-                            background_tasks.add_task(send_ticket_created_to_department_email, db, created_ticket, member)
-                        logger.info(f"Birim personeline bildirim gönderilecek - Talep ID: {created_ticket.id}, Alıcı sayısı: {len(recipients)}")
-                except Exception as e:
-                    logger.error(f"Departman bildirimi gönderilirken hata: {str(e)}")
-            elif require_manager_assignment and not created_ticket.is_private:
-                logger.info(f"require_manager_assignment=True - Talep yöneticiye atandı, birim personeline bildirim gönderilmedi")
-            elif created_ticket.is_private:
-                logger.info(f"is_private=True - Kişiye açık talep, birim personeline bildirim gönderilmedi")
+            message = f"{current_user.full_name} tarafından oluşturulan talep size atandı."
+
+        background_tasks.add_task(
+            notify_users_about_ticket,
+            None, # db yerine None geçiyoruz (arka planda yeni session açacak)
+            background_tasks,
+            created_ticket.id,
+            schemas.NotificationTypeEnum.TICKET_CREATED if not created_ticket.assignee_id else schemas.NotificationTypeEnum.TICKET_ASSIGNED,
+            title,
+            message,
+            current_user.id, # Kendisine bildirim gitmesin
+            'creation' # Context ekledik!
+        )
         
         return schemas.Ticket.from_ticket(created_ticket)
         
@@ -418,13 +405,19 @@ async def update_ticket(
     if ticket_update.description is not None:
         # HTML içeriğini temizle
         ticket.description = clean_html_content(ticket_update.description)
+    notif_type = schemas.NotificationTypeEnum.TICKET_UPDATED
+    notif_title = f"Talep Güncellendi: {ticket.title}"
+    notif_message = f"{current_user.full_name} talebi güncelledi."
+
     if ticket_update.status is not None:
         ticket.status = ticket_update.status
+        notif_message = f"{current_user.full_name} talebin durumunu '{ticket.status}' olarak güncelledi."
         # Kapanış tarihini güncelle
         if ticket_update.status == "closed":
             ticket.closed_at = datetime.now()
         else:
             ticket.closed_at = None
+    
     if ticket_update.priority is not None:
         ticket.priority = ticket_update.priority
     if ticket_update.is_private is not None:
@@ -435,33 +428,39 @@ async def update_ticket(
         if not department:
             raise HTTPException(status_code=404, detail="Departman bulunamadı")
         ticket.department_id = ticket_update.department_id
+        notif_message = f"{current_user.full_name} talebi başka bir birime yönlendirdi."
+
     if ticket_update.assignee_id is not None:
         # Atanacak kullanıcının varlığını kontrol et
         user = db.query(models.User).filter(models.User.id == ticket_update.assignee_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        # Eğer assignee değişiyorsa, email gönder
-        old_assignee_id = ticket.assignee_id
-        ticket.assignee_id = ticket_update.assignee_id
-        
-        # Email gönder (sadece yeni assignee'ye)
-        if ticket_update.assignee_id != old_assignee_id:
-            try:
-                notif_settings = db.query(models.NotificationSettings).filter(
-                    models.NotificationSettings.user_id == user.id
-                ).first()
-                allowed = False
-                if notif_settings is None:
-                    allowed = True
-                elif notif_settings.email_notifications and notif_settings.ticket_assigned:
-                    allowed = True
-                if allowed:
-                    from routers.system_settings import send_ticket_assignment_email
-                    background_tasks.add_task(send_ticket_assignment_email, db, ticket, user)
-            except Exception as e:
-                logger.error(f"Email gönderirken hata: {str(e)}")
-                # Email başarısız olsa bile ticket güncellemesi devam et
+        # Eğer assignee değişiyorsa
+        if ticket_update.assignee_id != ticket.assignee_id:
+            ticket.assignee_id = ticket_update.assignee_id
+            notif_type = schemas.NotificationTypeEnum.TICKET_ASSIGNED
+            notif_title = f"Talep Size Atandı: {ticket.title}"
+            notif_message = f"{current_user.full_name} bu talebi size atadı."
+        else:
+            ticket.assignee_id = ticket_update.assignee_id
+
+    db.commit()
+    db.refresh(ticket)
+
+    # Bildirim gönder
+    from utils.notifications import notify_users_about_ticket
+    background_tasks.add_task(
+        notify_users_about_ticket,
+        None,
+        background_tasks,
+        ticket.id,
+        notif_type,
+        notif_title,
+        notif_message,
+        current_user.id,
+        'update' # Context ekledik!
+    )
     
     db.commit()
     db.refresh(ticket)
@@ -474,37 +473,8 @@ async def update_ticket(
         joinedload(models.Ticket.assignee)
     ).filter(models.Ticket.id == ticket_id).first()
 
-    # Güncelleme bildirimlerini e-posta ile gönder (creator + assignee)
-    try:
-        from routers.system_settings import send_ticket_updated_email
-        recipients = []
-        if updated_ticket.creator and updated_ticket.creator.email:
-            recipients.append(updated_ticket.creator)
-        if updated_ticket.assignee and updated_ticket.assignee.email:
-            recipients.append(updated_ticket.assignee)
-
-        logger.info(f"Ticket {ticket_id} güncellendi - bildirim gönderiliyor: {[r.email for r in recipients]}")
-
-        for recipient in {r.id: r for r in recipients}.values():
-            notif_settings = db.query(models.NotificationSettings).filter(
-                models.NotificationSettings.user_id == recipient.id
-            ).first()
-            allowed = False
-            if notif_settings is None:
-                allowed = True
-            elif notif_settings.email_notifications and notif_settings.ticket_updated:
-                allowed = True
-
-            logger.info(f"Ticket update notification check for {recipient.email}: allowed={allowed}, settings={notif_settings}")
-
-            if allowed:
-                try:
-                    background_tasks.add_task(send_ticket_updated_email, db, updated_ticket, current_user, recipient)
-                    logger.info(f"Ticket update email task eklendi - {recipient.email}")
-                except Exception as e:
-                    logger.error(f"Ticket update notification email task hatası: {str(e)}")
-    except Exception as e:
-        logger.error(f"Ticket update notification process hatası: {str(e)}")
+    # NOT: Eski mail gönderme mantığı kaldırıldı (.notifications.py üzerinden yönetiliyor)
+    return schemas.Ticket.from_ticket(updated_ticket)
 
     return schemas.Ticket.from_ticket(updated_ticket)
 
@@ -548,6 +518,7 @@ def share_ticket(
 def add_comment(
     ticket_id: int,
     comment: schemas.CommentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
@@ -563,11 +534,28 @@ def add_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+
+    # Bildirim gönder
+    from utils.notifications import notify_users_about_ticket
+    background_tasks.add_task(
+        notify_users_about_ticket,
+        None,
+        background_tasks,
+        ticket_id,
+        schemas.NotificationTypeEnum.TICKET_COMMENTED,
+        f"Yeni Yorum: {new_comment.content[:30]}...",
+        f"{current_user.full_name} talebe bir yorum ekledi.",
+        current_user.id,
+        'comment', # Context ekledik!
+        new_comment.id # comment_id ekledik!
+    )
+
     return new_comment
 
 @router.post("/{ticket_id}/attachment")
 async def add_attachment(
     ticket_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
@@ -601,7 +589,21 @@ async def add_attachment(
     db.commit()
     db.refresh(new_attachment)
 
-    return {"filename": file.filename, "id": new_attachment.id}
+    # Bildirim gönder
+    from utils.notifications import notify_users_about_ticket
+    background_tasks.add_task(
+        notify_users_about_ticket,
+        None,
+        background_tasks,
+        ticket_id,
+        schemas.NotificationTypeEnum.TICKET_UPDATED,
+        f"Dosya Eklendi: {file.filename}",
+        f"{current_user.full_name} talebe yeni bir dosya ekledi.",
+        current_user.id,
+        'attachment', # Context ekledik!
+        None, # comment_id
+        new_attachment.id # attachment_id ekledik!
+    )
 
 @router.post("/{ticket_id}/attachments/")
 def upload_ticket_attachment(
@@ -620,8 +622,8 @@ def upload_ticket_attachment(
         raise HTTPException(status_code=404, detail="Destek talebi bulunamadı")
     
     # Açık durumda talebe dosya eklenemez - admin hariç
-    if ticket.status == "open" and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Talep henüz açık durumda. Önce 'İşlemde' olarak işaretleyin.")
+    # if ticket.status == "open" and not current_user.is_admin:
+    #     raise HTTPException(status_code=403, detail="Talep henüz açık durumda. Önce 'İşlemde' olarak işaretleyin.")
     
     # Dosya boyutu kontrolü (10MB limit)
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB
@@ -668,38 +670,28 @@ def upload_ticket_attachment(
         db.commit()
         db.refresh(attachment)
 
-        # Bildirim gönder (creator + assignee) - email preferences'a göre
-        try:
-            from routers.system_settings import send_attachment_notification_email
-            recipients = []
-            if ticket.creator and ticket.creator.email:
-                recipients.append(ticket.creator)
-            if ticket.assignee and ticket.assignee.email:
-                recipients.append(ticket.assignee)
+        # Bildirim gönder
+        from utils.notifications import notify_users_about_ticket
+        background_tasks.add_task(
+            notify_users_about_ticket,
+            None, # db yerine None geçiyoruz (arka planda yeni session açacak)
+            background_tasks,
+            ticket_id,
+            schemas.NotificationTypeEnum.TICKET_UPDATED,
+            f"Dosya Eklendi: {file.filename}",
+            f"{current_user.full_name} talebe yeni bir dosya ekledi.",
+            current_user.id,
+            'attachment',
+            None,
+            attachment.id
+        )
 
-            unique_recipients = {r.id: r for r in recipients}.values()
-            for recipient in unique_recipients:
-                notif_settings = db.query(models.NotificationSettings).filter(
-                    models.NotificationSettings.user_id == recipient.id
-                ).first()
-                allowed = False
-                if notif_settings is None:
-                    allowed = True
-                elif notif_settings.email_notifications and getattr(notif_settings, "ticket_attachment", True):
-                    allowed = True
-                if allowed:
-                    try:
-                        background_tasks.add_task(send_attachment_notification_email, db, ticket, attachment, current_user, recipient)
-                    except Exception as e:
-                        logger.error(f"Attachment notification email task hatası: {str(e)}")
-        except Exception as e:
-            logger.error(f"Attachment notification process hatası: {str(e)}")
         
         # Preview URL'si oluştur (resim dosyaları için)
         preview_url = None
         preview_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.webp'}
         if file_extension in preview_extensions:
-            preview_url = f"/tickets/{ticket_id}/attachments/{attachment.id}/preview"
+            preview_url = f"/api/tickets/{ticket_id}/attachments/{attachment.id}/preview"
         
         return {
             "id": attachment.id,
@@ -989,7 +981,7 @@ def get_ticket_attachments(
         
         preview_url = None
         if is_image or is_pdf:
-            preview_url = f"/tickets/{ticket_id}/attachments/{attachment.id}/preview"
+            preview_url = f"/api/tickets/{ticket_id}/attachments/{attachment.id}/preview"
         
         result.append({
             "id": attachment.id,
@@ -1000,7 +992,7 @@ def get_ticket_attachments(
             "uploaded_at": attachment.created_at.strftime("%d.%m.%Y %H:%M:%S") if attachment.created_at else "",
             "file_type": "image" if is_image else "document",
             "preview_url": preview_url,
-            "download_url": f"/tickets/{ticket_id}/attachments/{attachment.id}/download"
+            "download_url": f"/api/tickets/{ticket_id}/attachments/{attachment.id}/download"
         })
     
     return result

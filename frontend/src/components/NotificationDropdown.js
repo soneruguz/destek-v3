@@ -7,10 +7,10 @@ import { Link } from 'react-router-dom';
 const NotificationDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const { 
-    notifications, 
-    unreadCount, 
-    markAsRead, 
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
     markAllAsRead,
     fetchNotifications
   } = useNotifications();
@@ -19,7 +19,7 @@ const NotificationDropdown = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchNotifications();
-    }, 60000); // Her dakika kontrol et
+    }, 30000); // 30 saniyede bir kontrol et (WoW etkisi için)
 
     return () => clearInterval(interval);
   }, [fetchNotifications]);
@@ -51,22 +51,24 @@ const NotificationDropdown = () => {
     let icon = null;
     let url = '#';
 
-    switch (notification.type) {
+    const type = notification.type.toUpperCase();
+
+    switch (type) {
       case 'TICKET_CREATED':
       case 'TICKET_UPDATED':
       case 'TICKET_ASSIGNED':
-      case 'TICKET_COMMENT':
+      case 'TICKET_COMMENTED':
         icon = <BellIcon className="h-5 w-5 text-blue-500" />;
-        url = `/tickets/${notification.data.ticket_id}`;
+        url = `/tickets/${notification.related_id}`;
         break;
       case 'WIKI_CREATED':
       case 'WIKI_UPDATED':
         icon = <DocumentIcon className="h-5 w-5 text-green-500" />;
-        url = `/wikis/${notification.data.wiki_id}`;
+        url = `/wikis/${notification.related_id}`;
         break;
       case 'WIKI_SHARED':
         icon = <ShareIcon className="h-5 w-5 text-indigo-500" />;
-        url = `/wikis/${notification.data.wiki_id}`;
+        url = `/wikis/${notification.related_id}`;
         break;
       default:
         icon = <InformationCircleIcon className="h-5 w-5 text-gray-500" />;
@@ -83,7 +85,7 @@ const NotificationDropdown = () => {
       >
         <span className="sr-only">Bildirimleri göster</span>
         <BellIcon className="h-6 w-6" />
-        
+
         {unreadCount > 0 && (
           <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -124,9 +126,8 @@ const NotificationDropdown = () => {
                       key={notification.id}
                       to={url}
                       onClick={() => handleNotificationClick(notification)}
-                      className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${
-                        !notification.read_at ? 'bg-blue-50' : ''
-                      }`}
+                      className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${!notification.read_at ? 'bg-blue-50' : ''
+                        }`}
                     >
                       <div className="flex items-start">
                         <div className="flex-shrink-0 mr-3">

@@ -30,7 +30,6 @@ services:
       - TZ=Europe/Istanbul
       - UPLOAD_DIR=/app/uploads
       - DATABASE_URL=postgresql://destek_user:destek_pass@db:5432/destek_db
-      - CORS_ORIGINS=http://localhost,https://destek.tesmer.org.tr
     extra_hosts:
       - "tesmer.local:192.168.0.13"
     depends_on:

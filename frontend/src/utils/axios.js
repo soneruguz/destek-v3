@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { API_ROUTES } from '../config/apiConfig';
 
-// Combined container - her zaman relative /api path kullan
-const API_BASE_URL = '/api';
+// Backend ayrı domain'de (destekapi.tesmer.org.tr)
+// Production build'de relative path çalışmaz, tam URL kullanmalıyız
+const API_BASE_URL = 'https://devdestekapi.tesmer.org.tr/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

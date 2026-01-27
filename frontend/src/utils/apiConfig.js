@@ -1,4 +1,5 @@
 // API bağlantı konfigürasyonları
-const API_BASE_URL = 'http://192.168.0.75:8001';
+// HTTPS kullanılmalı (Mixed Content hatası önlemek için)
+const API_BASE_URL = 'https://devdestekapi.tesmer.org.tr/api';
 
 export default API_BASE_URL;

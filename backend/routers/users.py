@@ -147,7 +147,7 @@ def update_user(
             ).first()
             if db_user:
                 logger.info(f"Duplicate email found for user {db_user.id}")
-                raise HTTPException(status_code=400, detail="Bu e-posta adresi zaten kullanılıyor")
+                raise HTTPException(status_code=400, detail=f"Bu e-posta adresi zaten '{db_user.username}' tarafından kullanılıyor: {new_email}")
         elif not current_email and new_email:
             # Setting email for first time, check duplicates
             logger.info(f"Setting email for first time, checking for duplicates")
@@ -157,7 +157,7 @@ def update_user(
             ).first()
             if db_user:
                 logger.info(f"Duplicate email found for user {db_user.id}")
-                raise HTTPException(status_code=400, detail="Bu e-posta adresi zaten kullanılıyor")
+                raise HTTPException(status_code=400, detail=f"Bu e-posta adresi zaten '{db_user.username}' tarafından kullanılıyor: {new_email}")
     
     # Kullanıcı bilgilerini güncelle (yalnızca sağlananları)
     if user_update.email is not None:
@@ -175,6 +175,8 @@ def update_user(
             user.is_active = user_update.is_active
         if user_update.is_admin is not None:
             user.is_admin = user_update.is_admin
+        if user_update.is_ldap is not None:
+            user.is_ldap = user_update.is_ldap
         
         # Departman güncellemeleri (sadece yöneticiler yapabilir)
         if user_update.department_ids is not None:

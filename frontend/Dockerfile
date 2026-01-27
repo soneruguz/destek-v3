@@ -1,31 +1,43 @@
-FROM node:16-alpine
+FROM node:16-alpine AS builder
 
 WORKDIR /app
 
-# System setup and permissions
+# System setup
 RUN apk add --no-cache shadow tzdata && \
     cp /usr/share/zoneinfo/Europe/Istanbul /etc/localtime && \
-    echo "Europe/Istanbul" > /etc/timezone && \
-    mkdir -p /app/node_modules /app/node_modules/.cache && \
-    chmod -R 777 /app/node_modules
+    echo "Europe/Istanbul" > /etc/timezone
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies as root
+# Install dependencies
 RUN npm install && \
-    npm cache clean --force && \
-    chmod -R 777 /app/node_modules
+    npm cache clean --force
 
 # Copy application code
 COPY . .
 
-# Ensure .cache directory exists and has correct permissions
-RUN mkdir -p /app/node_modules/.cache && \
-    chmod -R 777 /app/node_modules/.cache && \
-    # Create .eslintcache file with write permissions for everyone
-    touch /app/node_modules/.cache/.eslintcache && \
-    chmod 666 /app/node_modules/.cache/.eslintcache
+# Build the application for production
+RUN npm run build
 
-# Command to run the app
-CMD ["sh", "-c", "mkdir -p /app/node_modules/.cache && chmod -R 777 /app/node_modules/.cache && npm start"]
+# Production stage
+FROM node:16-alpine
+
+WORKDIR /app
+
+# Install serve globally to serve static files
+RUN npm install -g serve
+
+# Copy built files from builder stage
+COPY --from=builder /app/build ./build
+
+# Set timezone
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Europe/Istanbul /etc/localtime && \
+    echo "Europe/Istanbul" > /etc/timezone
+
+# Expose port
+EXPOSE 3000
+
+# Serve the built application
+CMD ["serve", "-s", "build", "-l", "3000"]

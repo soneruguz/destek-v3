@@ -38,18 +38,29 @@ const SystemSettings = () => {
     ldap_bind_dn: '',
     ldap_bind_password: '',
     ldap_user_filter: '',
-    require_manager_assignment: false
+    custom_logo_url: null,
+    require_manager_assignment: false,
+    workflow_enabled: false,
+    triage_user_id: null,
+    triage_department_id: null,
+    escalation_enabled: false,
+    escalation_target_user_id: null,
+    escalation_target_department_id: null,
+    timeout_critical: 60,
+    timeout_high: 240,
+    timeout_medium: 480,
+    timeout_low: 1440
   });
   const [departments, setDepartments] = useState([]);
   const [users, setUsers] = useState([]);
   const [editingDepartment, setEditingDepartment] = useState(null);
-  
+
   const [saving, setSaving] = useState(false);
   const [emailSaving, setEmailSaving] = useState(false);
   const [generalSaving, setGeneralSaving] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
   const [departmentSaving, setDepartmentSaving] = useState(false);
-  
+
   // useEffect'i koşullu ifadeden önce çağır
   useEffect(() => {
     // Kullanıcı admin değilse veri çekme
@@ -57,7 +68,7 @@ const SystemSettings = () => {
       setLoading(false);
       return;
     }
-    
+
     const fetchSettings = async () => {
       try {
         setLoading(true);
@@ -69,7 +80,7 @@ const SystemSettings = () => {
           require_teos_id: response.data.require_teos_id || false,
           require_citizenship_no: response.data.require_citizenship_no || false
         });
-        
+
         // Email config - undefined değerleri default değerlerle değiştir
         setEmailConfig({
           smtp_server: response.data.email?.smtp_server || '',
@@ -80,7 +91,7 @@ const SystemSettings = () => {
           from_email: response.data.email?.from_email || '',
           from_name: response.data.email?.from_name || 'Destek Sistemi'
         });
-        
+
         // General config - undefined değerleri default değerlerle değiştir  
         setGeneralConfig({
           app_name: response.data.general?.app_name || 'Destek Sistemi',
@@ -96,7 +107,18 @@ const SystemSettings = () => {
           ldap_bind_dn: response.data.general?.ldap_bind_dn || '',
           ldap_bind_password: response.data.general?.ldap_bind_password || '',
           ldap_user_filter: response.data.general?.ldap_user_filter || '',
-          require_manager_assignment: response.data.general?.require_manager_assignment || false
+          custom_logo_url: response.data.general?.custom_logo_url || null,
+          require_manager_assignment: response.data.general?.require_manager_assignment || false,
+          workflow_enabled: response.data.general?.workflow_enabled || false,
+          triage_user_id: response.data.general?.triage_user_id || null,
+          triage_department_id: response.data.general?.triage_department_id || null,
+          escalation_enabled: response.data.general?.escalation_enabled || false,
+          escalation_target_user_id: response.data.general?.escalation_target_user_id || null,
+          escalation_target_department_id: response.data.general?.escalation_target_department_id || null,
+          timeout_critical: response.data.general?.timeout_critical || 60,
+          timeout_high: response.data.general?.timeout_high || 240,
+          timeout_medium: response.data.general?.timeout_medium || 480,
+          timeout_low: response.data.general?.timeout_low || 1440
         });
       } catch (err) {
         console.error('Error fetching settings:', err);
@@ -105,13 +127,13 @@ const SystemSettings = () => {
         setLoading(false);
       }
     };
-    
+
     fetchSettings();
   }, [user, addToast]);
 
   useEffect(() => {
     if (!user?.is_admin) return;
-    
+
     const fetchDepartmentsAndUsers = async () => {
       try {
         const [deptsRes, usersRes] = await Promise.all([
@@ -124,13 +146,13 @@ const SystemSettings = () => {
         console.error('Error fetching departments/users:', err);
       }
     };
-    
+
     fetchDepartmentsAndUsers();
   }, [user]);
 
   const handleChange = (e) => {
     const { name, checked } = e.target;
-    
+
     // Eğer alan devre dışı bırakılıyorsa zorunluluğu da kaldır
     if (name === 'enable_teos_id' && !checked) {
       setConfig(prev => ({ ...prev, [name]: checked, require_teos_id: false }));
@@ -140,29 +162,29 @@ const SystemSettings = () => {
       setConfig(prev => ({ ...prev, [name]: checked }));
     }
   };
-  
+
   const handleEmailChange = (e) => {
     const { name, value, type, checked } = e.target;
     setEmailConfig(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : 
-              type === 'number' ? parseInt(value) : value
+      [name]: type === 'checkbox' ? checked :
+        type === 'number' ? parseInt(value) : value
     }));
   };
-  
+
   const handleGeneralChange = (e) => {
     const { name, value, type, checked } = e.target;
     setGeneralConfig(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : 
-              type === 'number' ? parseFloat(value) : value
+      [name]: type === 'checkbox' ? checked :
+        type === 'number' ? parseFloat(value) : value
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    
+
     try {
       await axiosInstance.put('/settings/general-config', config);
       addToast('Form ayarları başarıyla güncellendi', 'success');
@@ -173,7 +195,7 @@ const SystemSettings = () => {
       setSaving(false);
     }
   };
-  
+
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setEmailSaving(true);
@@ -193,11 +215,11 @@ const SystemSettings = () => {
       setEmailSaving(false);
     }
   };
-  
+
   const handleGeneralSubmit = async (e) => {
     e.preventDefault();
     setGeneralSaving(true);
-    
+
     try {
       await axiosInstance.put('/settings/general-config', generalConfig);
       addToast('Genel ayarlar başarıyla güncellendi', 'success');
@@ -208,7 +230,7 @@ const SystemSettings = () => {
       setGeneralSaving(false);
     }
   };
-  
+
   const handleTestEmail = async () => {
     setTestingEmail(true);
     try {
@@ -236,8 +258,8 @@ const SystemSettings = () => {
         description: departments.find(d => d.id === departmentId)?.description,
         manager_id: managerId || null
       });
-      
-      setDepartments(prev => 
+
+      setDepartments(prev =>
         prev.map(d => d.id === departmentId ? response.data : d)
       );
       addToast('Birim yöneticisi başarıyla güncellendi', 'success');
@@ -273,63 +295,67 @@ const SystemSettings = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-gray-900">Sistem Ayarları</h1>
-      
+
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8 overflow-x-auto">
           <button
             onClick={() => handleTabChange('formSettings')}
-            className={`${
-              activeTab === 'formSettings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'formSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Talep Formu Ayarları
           </button>
           <button
             onClick={() => handleTabChange('emailSettings')}
-            className={`${
-              activeTab === 'emailSettings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'emailSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             E-posta Ayarları
           </button>
           <button
             onClick={() => handleTabChange('notificationSettings')}
-            className={`${
-              activeTab === 'notificationSettings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'notificationSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Bildirim Ayarları
           </button>
           <button
             onClick={() => handleTabChange('generalSettings')}
-            className={`${
-              activeTab === 'generalSettings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'generalSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Genel Ayarlar
           </button>
           <button
+            onClick={() => handleTabChange('workflowSettings')}
+            className={`${activeTab === 'workflowSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            İş Akışı ve Yönlendirme
+          </button>
+          <button
             onClick={() => handleTabChange('departmentSettings')}
-            className={`${
-              activeTab === 'departmentSettings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            className={`${activeTab === 'departmentSettings'
+              ? 'border-primary-500 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Birim Yönetimi
           </button>
         </nav>
       </div>
-      
+
       {/* Tab Content */}
       <div className="mt-6">
         {activeTab === 'formSettings' && (
@@ -340,7 +366,7 @@ const SystemSettings = () => {
                 Talep formunda hangi alanların görüntüleneceğini ve zorunlu olacağını ayarlayın.
               </p>
             </div>
-            
+
             <form onSubmit={handleSubmit}>
               <div className="px-4 py-5 sm:p-6">
                 <div className="space-y-6">
@@ -363,7 +389,7 @@ const SystemSettings = () => {
                           <p className="text-gray-500">Talep formunda Teos ID alanını görünür yap.</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start pl-7">
                         <div className="flex items-center h-5">
                           <input
@@ -387,7 +413,7 @@ const SystemSettings = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="text-base font-medium text-gray-900 mb-3">Vatandaşlık Numarası Alanı</h4>
                     <div className="space-y-4">
@@ -407,7 +433,7 @@ const SystemSettings = () => {
                           <p className="text-gray-500">Talep formunda Vatandaşlık Numarası alanını görünür yap.</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-start pl-7">
                         <div className="flex items-center h-5">
                           <input
@@ -431,7 +457,7 @@ const SystemSettings = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="text-base font-medium text-gray-900 mb-3">Departman Yöneticisi Onay Süreci</h4>
                     <div className="space-y-4">
@@ -459,7 +485,7 @@ const SystemSettings = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="px-4 py-3 bg-gray-50 text-right sm:px-6">
                 <button
                   type="submit"
@@ -472,7 +498,7 @@ const SystemSettings = () => {
             </form>
           </div>
         )}
-        
+
         {activeTab === 'emailSettings' && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-gray-50">
@@ -481,7 +507,7 @@ const SystemSettings = () => {
                 Sistem tarafından gönderilecek e-postaların yapılandırmasını ayarlayın.
               </p>
             </div>
-            
+
             <form onSubmit={handleEmailSubmit}>
               <div className="px-4 py-5 sm:p-6">
                 <div className="space-y-6">
@@ -500,7 +526,7 @@ const SystemSettings = () => {
                         placeholder="örn. smtp.gmail.com"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="smtp_port" className="block text-sm font-medium text-gray-700">
                         SMTP Port
@@ -515,7 +541,7 @@ const SystemSettings = () => {
                         placeholder="örn. 587"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="smtp_username" className="block text-sm font-medium text-gray-700">
                         SMTP Kullanıcı Adı
@@ -530,7 +556,7 @@ const SystemSettings = () => {
                         placeholder="örn. myemail@example.com"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="smtp_password" className="block text-sm font-medium text-gray-700">
                         SMTP Şifresi
@@ -545,7 +571,7 @@ const SystemSettings = () => {
                         placeholder="••••••••"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="from_email" className="block text-sm font-medium text-gray-700">
                         Gönderen E-posta Adresi
@@ -560,7 +586,7 @@ const SystemSettings = () => {
                         placeholder="örn. support@example.com"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="from_name" className="block text-sm font-medium text-gray-700">
                         Gönderen Adı
@@ -576,7 +602,7 @@ const SystemSettings = () => {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <div className="flex items-center h-5">
                       <input
@@ -599,7 +625,7 @@ const SystemSettings = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="px-4 py-3 bg-gray-50 sm:px-6 flex justify-between">
                 <button
                   type="button"
@@ -620,7 +646,7 @@ const SystemSettings = () => {
             </form>
           </div>
         )}
-        
+
         {activeTab === 'notificationSettings' && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-gray-50">
@@ -629,13 +655,13 @@ const SystemSettings = () => {
                 Sistem genelinde bildirim ayarlarını yönetin.
               </p>
             </div>
-            
+
             <div className="px-4 py-5 sm:p-6">
               <NotificationSettings />
             </div>
           </div>
         )}
-        
+
         {activeTab === 'generalSettings' && (
           <div className="bg-white shadow rounded-lg overflow-hidden">
             <div className="px-4 py-5 sm:px-6 bg-gray-50">
@@ -644,7 +670,7 @@ const SystemSettings = () => {
                 Sistem genelinde kullanılan genel ayarları yapılandırın.
               </p>
             </div>
-            
+
             <form onSubmit={handleGeneralSubmit}>
               <div className="px-4 py-5 sm:p-6">
                 <div className="space-y-6">
@@ -663,7 +689,7 @@ const SystemSettings = () => {
                         className="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="support_email" className="block text-sm font-medium text-gray-700">
                         Destek E-posta Adresi
@@ -678,7 +704,43 @@ const SystemSettings = () => {
                       />
                     </div>
                   </div>
-                  
+
+                  <h4 className="text-base font-medium text-gray-900 pt-4">Görünüm Ayarları</h4>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700">Logo Yükle</label>
+                      <div className="mt-1 flex items-center">
+                        {generalConfig.custom_logo_url && (
+                          <span className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 mr-4">
+                            <img src={`${axiosInstance.defaults.baseURL.replace('/api', '')}/uploads${generalConfig.custom_logo_url}`} alt="Logo" className="h-full w-full object-contain" />
+                          </span>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            if (e.target.files[0]) {
+                              const formData = new FormData();
+                              formData.append('file', e.target.files[0]);
+                              try {
+                                const res = await axiosInstance.post('/settings/upload-logo', formData, {
+                                  headers: { 'Content-Type': 'multipart/form-data' }
+                                });
+                                setGeneralConfig(prev => ({ ...prev, custom_logo_url: res.data.url }));
+                                addToast('Logo başarıyla yüklendi', 'success');
+                              } catch (err) {
+                                console.error(err);
+                                addToast('Logo yüklenirken hata oluştu', 'error');
+                              }
+                            }
+                          }}
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">Giriş sayfasında görüntülenecek logo (PNG, JPG tavsiye edilir).</p>
+                    </div>
+                  </div>
+
                   <h4 className="text-base font-medium text-gray-900 pt-4">Dosya Yükleme Ayarları</h4>
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                     <div>
@@ -694,7 +756,7 @@ const SystemSettings = () => {
                         className="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="default_department_id" className="block text-sm font-medium text-gray-700">
                         Varsayılan Birim
@@ -713,7 +775,7 @@ const SystemSettings = () => {
                       </select>
                       <p className="mt-1 text-xs text-gray-500">Yeni talep oluşturma ekranında ön tanımlı olarak gösterilecek birim</p>
                     </div>
-                    
+
                     <div>
                       <label htmlFor="allowed_file_types" className="block text-sm font-medium text-gray-700">
                         İzin Verilen Dosya Türleri
@@ -728,7 +790,7 @@ const SystemSettings = () => {
                       />
                       <p className="mt-1 text-xs text-gray-500">Virgülle ayırarak girin (örn. pdf,doc,jpg)</p>
                     </div>
-                    
+
                     <div className="sm:col-span-2">
                       <label htmlFor="upload_directory" className="block text-sm font-medium text-gray-700">
                         Dosya Yükleme Dizini
@@ -742,12 +804,12 @@ const SystemSettings = () => {
                         className="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                       <p className="mt-1 text-xs text-gray-500">
-                        Yüklenen dosyaların kaydedileceği mutlak yol (örn. /app/uploads veya /mnt/storage/uploads). 
+                        Yüklenen dosyaların kaydedileceği mutlak yol (örn. /app/uploads veya /mnt/storage/uploads).
                         Docker container'a mount edilmiş bir dizin kullanarak container boyutunu kontrol edebilirsiniz.
                       </p>
                     </div>
                   </div>
-                  
+
                   <h4 className="text-base font-medium text-gray-900 pt-4">LDAP Entegrasyonu</h4>
                   <div className="flex items-start mb-4">
                     <div className="flex items-center h-5">
@@ -769,7 +831,7 @@ const SystemSettings = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className={`grid grid-cols-1 gap-6 sm:grid-cols-2 ${!generalConfig.enable_ldap ? 'opacity-50' : ''}`}>
                     <div>
                       <label htmlFor="ldap_server" className="block text-sm font-medium text-gray-700">
@@ -785,7 +847,7 @@ const SystemSettings = () => {
                         className="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="ldap_port" className="block text-sm font-medium text-gray-700">
                         LDAP Port
@@ -800,7 +862,7 @@ const SystemSettings = () => {
                         className="mt-1 focus:ring-primary-500 focus:border-primary-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="ldap_base_dn" className="block text-sm font-medium text-gray-700">
                         LDAP Base DN
@@ -816,7 +878,7 @@ const SystemSettings = () => {
                         placeholder="dc=example,dc=com"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="ldap_bind_dn" className="block text-sm font-medium text-gray-700">
                         LDAP Bind DN
@@ -832,7 +894,7 @@ const SystemSettings = () => {
                         placeholder="cn=admin,dc=example,dc=com"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="ldap_bind_password" className="block text-sm font-medium text-gray-700">
                         LDAP Bind Şifresi
@@ -848,7 +910,7 @@ const SystemSettings = () => {
                         placeholder="••••••••"
                       />
                     </div>
-                    
+
                     <div>
                       <label htmlFor="ldap_user_filter" className="block text-sm font-medium text-gray-700">
                         LDAP Kullanıcı Filtresi
@@ -867,12 +929,199 @@ const SystemSettings = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="px-4 py-3 bg-gray-50 text-right sm:px-6">
                 <button
                   type="submit"
                   disabled={generalSaving}
                   className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                >
+                  {generalSaving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+        {activeTab === 'workflowSettings' && (
+          <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="px-4 py-5 sm:px-6 bg-gray-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg leading-6 font-medium text-gray-900">İş Akışı ve Yönlendirme Ayarları</h3>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                  Taleplerin merkezi bir birimden geçmesini ve zaman aşımına uğrayan taleplerin otomatik yönlendirilmesini yapılandırın.
+                </p>
+              </div>
+              <div className="flex items-center bg-white px-4 py-2 rounded-lg border border-gray-200">
+                <input
+                  id="workflow_enabled"
+                  name="workflow_enabled"
+                  type="checkbox"
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  checked={generalConfig.workflow_enabled}
+                  onChange={handleGeneralChange}
+                />
+                <label htmlFor="workflow_enabled" className="ml-2 block text-sm font-bold text-gray-900">
+                  Sistemi Etkinleştir
+                </label>
+              </div>
+            </div>
+
+            <form onSubmit={handleGeneralSubmit}>
+              <div className={`px-4 py-5 sm:p-6 ${!generalConfig.workflow_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="space-y-8">
+                  {/* Merkezi Yönlendirme */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <h4 className="text-base font-medium text-blue-900 mb-4 flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      Merkezi Yönlendirme
+                    </h4>
+                    <p className="text-sm text-blue-700 mb-4">
+                      Tüm yeni talepler önce burada belirlenen kullanıcıya veya birime atanır. Yönlendirici, talebi uygun kişi/birime yönlendirmekle yükümlüdür.
+                    </p>
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Yönlendirici Kullanıcı</label>
+                        <select
+                          name="triage_user_id"
+                          value={generalConfig.triage_user_id || ''}
+                          onChange={(e) => setGeneralConfig(prev => ({ ...prev, triage_user_id: e.target.value ? parseInt(e.target.value) : null }))}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                        >
+                          <option value="">Seçilmedi (Birim bazlı yönlendirme aktif olur)</option>
+                          {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.full_name} ({u.username})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Yönlendirici Birim</label>
+                        <select
+                          name="triage_department_id"
+                          value={generalConfig.triage_department_id || ''}
+                          onChange={(e) => setGeneralConfig(prev => ({ ...prev, triage_department_id: e.target.value ? parseInt(e.target.value) : null }))}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                        >
+                          <option value="">Seçilmedi</option>
+                          {departments.map(d => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Otomatik Atama */}
+                  <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-base font-medium text-orange-900 flex items-center">
+                        <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Otomatik Atama
+                      </h4>
+                      <div className="flex items-center">
+                        <input
+                          id="escalation_enabled"
+                          name="escalation_enabled"
+                          type="checkbox"
+                          className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                          checked={generalConfig.escalation_enabled}
+                          onChange={handleGeneralChange}
+                        />
+                        <label htmlFor="escalation_enabled" className="ml-2 block text-sm font-medium text-gray-700">Etkinleştir</label>
+                      </div>
+                    </div>
+
+                    <div className={`space-y-6 ${!generalConfig.escalation_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                      <p className="text-sm text-orange-700">
+                        Belirlenen sürede (dakika cinsinden) atanmayan veya işlem görmeyen talepler otomatik olarak aşağıdaki hedefe yönlendirilir.
+                      </p>
+
+                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Hedef Kullanıcı (Yedek)</label>
+                          <select
+                            name="escalation_target_user_id"
+                            value={generalConfig.escalation_target_user_id || ''}
+                            onChange={(e) => setGeneralConfig(prev => ({ ...prev, escalation_target_user_id: e.target.value ? parseInt(e.target.value) : null }))}
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                          >
+                            <option value="">Seçilmedi</option>
+                            {users.map(u => (
+                              <option key={u.id} value={u.id}>{u.full_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700">Hedef Birim (Yedek)</label>
+                          <select
+                            name="escalation_target_department_id"
+                            value={generalConfig.escalation_target_department_id || ''}
+                            onChange={(e) => setGeneralConfig(prev => ({ ...prev, escalation_target_department_id: e.target.value ? parseInt(e.target.value) : null }))}
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                          >
+                            <option value="">Seçilmedi</option>
+                            {departments.map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 pt-4 border-t border-orange-200">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase">Kritik (Dakika)</label>
+                          <input
+                            type="number"
+                            name="timeout_critical"
+                            value={generalConfig.timeout_critical}
+                            onChange={handleGeneralChange}
+                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase">Yüksek (Dakika)</label>
+                          <input
+                            type="number"
+                            name="timeout_high"
+                            value={generalConfig.timeout_high}
+                            onChange={handleGeneralChange}
+                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase">Orta (Dakika)</label>
+                          <input
+                            type="number"
+                            name="timeout_medium"
+                            value={generalConfig.timeout_medium}
+                            onChange={handleGeneralChange}
+                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase">Düşük (Dakika)</label>
+                          <input
+                            type="number"
+                            name="timeout_low"
+                            value={generalConfig.timeout_low}
+                            onChange={handleGeneralChange}
+                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-4 py-3 bg-gray-50 text-right sm:px-6">
+                <button
+                  type="submit"
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                  disabled={generalSaving}
                 >
                   {generalSaving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
                 </button>
@@ -888,7 +1137,7 @@ const SystemSettings = () => {
                 Birimlere yönetici atayın
               </p>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -930,7 +1179,7 @@ const SystemSettings = () => {
                           </select>
                         ) : (
                           <span>
-                            {dept.manager_id 
+                            {dept.manager_id
                               ? users.find(u => u.id === dept.manager_id)?.full_name || 'Bilinmiyor'
                               : 'Atanmamış'}
                           </span>

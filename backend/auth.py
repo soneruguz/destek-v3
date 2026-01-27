@@ -19,15 +19,17 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # LDAP ayarları
-LDAP_SERVER = f"ldap://{os.getenv('LDAP_HOST', 'tesmer.local')}:{os.getenv('LDAP_PORT', '389')}"
+LDAP_HOST = os.getenv('LDAP_HOST') or os.getenv('LDAP_SERVER', 'tesmer.local')
+LDAP_PORT = int(os.getenv('LDAP_PORT', '389'))
+LDAP_SERVER = f"ldap://{LDAP_HOST}:{LDAP_PORT}"
 LDAP_BASE_DN = os.getenv("LDAP_BASE_DN", "OU=TesmerUser,DC=tesmer,DC=local")
-LDAP_BIND_DN = os.getenv("LDAP_BIND_DN", "CN=Ldap reader,OU=TesmerUser,DC=tesmer,DC=local")
-LDAP_BIND_PASSWORD = os.getenv("LDAP_BIND_PASSWORD", "S160682u*")
+LDAP_BIND_DN = os.getenv("LDAP_BIND_DN") or os.getenv("LDAP_USERNAME", "CN=Ldap reader,OU=TesmerUser,DC=tesmer,DC=local")
+LDAP_BIND_PASSWORD = os.getenv("LDAP_BIND_PASSWORD") or os.getenv("LDAP_PASSWORD", "S160682u*")
 
 # JWT ayarları
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 # 24 saat
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -75,14 +77,16 @@ def authenticate_ldap(username: str, password: str):
     try:
         logger.info(f"LDAP authentication attempt for: {username}")
         
-        # LDAP sunucu bağlantısı - DOĞRU HOST
-        server = Server('ldap://tesmer.local:389', get_info=ALL, connect_timeout=10)
+        # LDAP sunucu bağlantısı - environment variable'lardan oku
+        ldap_host = os.getenv('LDAP_HOST', 'tesmer.local')
+        ldap_port = int(os.getenv('LDAP_PORT', '389'))
+        server = Server(f'ldap://{ldap_host}:{ldap_port}', get_info=ALL, connect_timeout=10)
         
-        # DOĞRU BIND DN
-        bind_dn = "CN=Ldap reader,OU=TesmerUser,DC=tesmer,DC=local"
-        bind_password = "S160682u*"
+        # BIND DN ve password - environment variable'lardan oku
+        bind_dn = LDAP_BIND_DN
+        bind_password = LDAP_BIND_PASSWORD
         
-        logger.info(f"Connecting to LDAP server with bind DN: {bind_dn}")
+        logger.info(f"Connecting to LDAP server: {ldap_host}:{ldap_port} with bind DN: {bind_dn}")
         
         # Bağlantıyı manuel olarak kur
         conn = Connection(server, bind_dn, bind_password, auto_bind=False)
@@ -95,9 +99,18 @@ def authenticate_ldap(username: str, password: str):
             
         logger.info("LDAP bind successful")
         
-        # Kullanıcıyı ara - DOĞRU BASE DN
+        # BASE_DN'den domain'i çıkar (DC=tesmer,DC=local formatı için)
+        search_base = LDAP_BASE_DN
+        if 'DC=' in search_base:
+            # DC kısmını bul (örn: OU=TesmerUser,DC=tesmer,DC=local -> DC=tesmer,DC=local)
+            dc_parts = [part.strip() for part in search_base.split(',') if part.strip().startswith('DC=')]
+            if dc_parts:
+                search_base = ','.join(dc_parts)
+        
+        # Kullanıcıyı ara
         search_filter = f"(sAMAccountName={username})"
-        conn.search('DC=tesmer,DC=local', search_filter, attributes=['cn', 'mail', 'sAMAccountName'])
+        logger.info(f"Searching for user in: {search_base}")
+        conn.search(search_base, search_filter, attributes=['cn', 'mail', 'sAMAccountName'])
         
         if len(conn.entries) == 0:
             logger.warning(f"User {username} not found in LDAP")
@@ -116,13 +129,23 @@ def authenticate_ldap(username: str, password: str):
         if user_conn.bind():
             logger.info(f"LDAP authentication successful for {username}")
             user_conn.unbind()
+            
+            # Email domain'i - LDAP'tan gelen mail varsa onu kullan, yoksa tesmer.org.tr
+            # tesmer.local mail sunucuları tarafından reddediliyor
+            ldap_email = str(user_entry.mail) if user_entry.mail else None
+            
+            # Eğer LDAP email'i tesmer.local ile bitiyorsa düzelt
+            if ldap_email and ldap_email.endswith('@tesmer.local'):
+                ldap_email = ldap_email.replace('@tesmer.local', '@tesmer.org.tr')
+            
             return {
                 'username': username,
                 'full_name': str(user_entry.cn) if user_entry.cn else username,
-                'email': str(user_entry.mail) if user_entry.mail else f"{username}@tesmer.local"
+                'email': ldap_email or f"{username}@tesmer.org.tr"
             }
         else:
             logger.warning(f"LDAP password incorrect for {username}")
+            user_conn.unbind()
             return None
             
     except Exception as e:
@@ -139,11 +162,13 @@ def authenticate_user(db: Session, username: str, password: str):
     if not user.is_active:
         return False
     
-    # LDAP kullanıcısı ise LDAP'tan auth yap
+    # LDAP kullanıcısı ise SADECE LDAP'tan auth yap (yerel şifre fallback yapılamaz)
     if user.is_ldap:
-        if authenticate_ldap(username, password):
+        ldap_result = authenticate_ldap(username, password)
+        if ldap_result:
             return user
         else:
+            logger.warning(f"Strict LDAP authentication failed for user: {username}")
             return False
     
     # Local kullanıcı ise hash kontrolü yap
@@ -373,65 +398,28 @@ def login_for_access_token(
     try:
         logger.info(f"Login attempt: {form_data.username}")
         
-        # Admin kullanıcı kontrolü
-        if form_data.username == "admin" and form_data.password == "admin":
-            # Admin user'ı veritabanından bul
-            user = db.query(models.User).filter(models.User.username == "admin").first()
-            if not user:
-                # Admin user yoksa oluştur
-                logger.info("Admin user DB'de bulunamadı, oluşturuluyor...")
-                from models import Department
-                first_dept = db.query(Department).first()
-                user = models.User(
-                    username="admin",
-                    email="admin@destek.com",
-                    full_name="System Administrator",
-                    hashed_password=get_password_hash("admin"),
-                    is_admin=True,
-                    is_ldap=False,
-                    is_active=True,
-                    department_id=first_dept.id if first_dept else None
-                )
-                db.add(user)
-                db.commit()
-                db.refresh(user)
-                logger.info(f"Admin user oluşturuldu: ID {user.id}")
-            
-            # Admin token oluştur ve gerçek veritabanı verilerini döndür
-            access_token = create_access_token(data={"sub": "admin"})
-            return {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "full_name": user.full_name,
-                    "is_admin": user.is_admin,
-                    "is_active": user.is_active,
-                    "email": user.email
-                }
-            }
+        # 1. Kullanıcıyı DB'de ara
+        user = db.query(models.User).filter(models.User.username == form_data.username).first()
         
-        # Önce LDAP denemesi yap
-        if LDAP_AVAILABLE:
+        # 2. Eğer kullanıcı aktif değilse hemen reddet
+        if user and not user.is_active:
+            logger.warning(f"Inactive user login attempt: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Kullanıcı hesabı aktif değil. Lütfen sistem yöneticisi ile iletişime geçin."
+            )
+
+        # 3. LDAP Kullanıcısı mı kontrol et veya Yeni LDAP Kaydı mı bak
+        if (user and user.is_ldap) or (not user and LDAP_AVAILABLE):
+            # LDAP doğrulaması dene
             ldap_result = authenticate_ldap(form_data.username, form_data.password)
+            
             if ldap_result:
-                # LDAP kullanıcısını veritabanında bul veya oluştur
-                user = db.query(models.User).filter(models.User.username == form_data.username).first()
-                
-                # Kullanıcı varsa ama aktif değilse hata ver
-                if user and not user.is_active:
-                    logger.warning(f"Inactive user login attempt: {form_data.username}")
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Kullanıcı hesabı aktif değil. Lütfen sistem yöneticisi ile iletişime geçin."
-                    )
-                
                 if not user:
                     # Yeni LDAP kullanıcısı oluştur
                     user = models.User(
                         username=ldap_result['username'],
-                        email=ldap_result['email'],
+                        email=ldap_result.get('email', f"{ldap_result['username']}@tesmer.org.tr"),
                         full_name=ldap_result['full_name'],
                         hashed_password="",  # LDAP kullanıcıları için şifre yok
                         is_ldap=True,
@@ -443,12 +431,12 @@ def login_for_access_token(
                     db.refresh(user)
                     logger.info(f"Yeni LDAP kullanıcısı oluşturuldu: {user.username}")
                 else:
-                    # Mevcut kullanıcıyı güncelle
-                    user.email = ldap_result['email']
+                    # Mevcut LDAP kullanıcısını güncelle
+                    user.email = ldap_result.get('email', f"{user.username}@tesmer.org.tr")
                     user.full_name = ldap_result['full_name']
                     user.is_active = True
                     db.commit()
-                    logger.info(f"LDAP kullanıcısı güncellendi: {user.username}")
+                    logger.info(f"LDAP kullanıcısı doğrulandı ve güncellendi: {user.username}")
                 
                 access_token = create_access_token(data={"sub": user.username})
                 return {
@@ -463,29 +451,46 @@ def login_for_access_token(
                         "email": user.email
                     }
                 }
-        
-        # Local kullanıcı authentication
-        user = authenticate_user(db, form_data.username, form_data.password)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Kullanıcı adı veya şifre yanlış",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        access_token = create_access_token(data={"sub": user.username})
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "full_name": user.full_name,
-                "is_admin": getattr(user, 'is_admin', False),
-                "is_active": user.is_active,
-                "email": getattr(user, 'email', f"{user.username}@sistem.com")
+            elif user and user.is_ldap:
+                # LDAP kullanıcısı ama LDAP doğrulaması başarısız oldu
+                logger.warning(f"Strict LDAP login failed for user: {form_data.username}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Kullanıcı adı veya şifre yanlış (LDAP)",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+        # 4. Yerel Kullanıcı Doğrulaması (Kullanıcı DB'de varsa ve is_ldap=False ise)
+        if user and not user.is_ldap:
+            if not verify_password(form_data.password, user.hashed_password):
+                logger.warning(f"Local login failed: Password mismatch for user {form_data.username}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Kullanıcı adı veya şifre yanlış",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            logger.info(f"Local login successful: {user.username}")
+            access_token = create_access_token(data={"sub": user.username})
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "is_admin": getattr(user, 'is_admin', False),
+                    "is_active": user.is_active,
+                    "email": getattr(user, 'email', f"{user.username}@sistem.com")
+                }
             }
-        }
+        
+        # Hiçbir koşul sağlanmadıysa (User yok ve LDAP başarısız ya da LDAP kapalı)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kullanıcı bulunamadı veya bilgiler yanlış",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
         
     except HTTPException:
         raise

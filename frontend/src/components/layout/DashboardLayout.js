@@ -17,7 +17,8 @@ const Icons = {
   Plus: () => <span>+</span>,
   Cog: () => <span>⚙</span>,
   BookOpen: () => <span>📖</span>,
-  Clock: () => <span>🕐</span>
+  Clock: () => <span>🕐</span>,
+  ChartPie: () => <span>📊</span>
 };
 
 const DashboardLayout = () => {
@@ -36,6 +37,7 @@ const DashboardLayout = () => {
   const adminNavigation = [
     { name: 'Departmanlar', icon: Icons.BuildingOffice, href: '/departments' },
     { name: 'Kullanıcılar', icon: Icons.UserGroup, href: '/users' },
+    { name: 'Raporlar ve Arama', icon: Icons.ChartPie, href: '/reports' },
     { name: 'Sistem Ayarları', icon: Icons.Cog, href: '/settings' },
     { name: 'Giriş Kayıtları', icon: Icons.Clock, href: '/login-logs' }
   ];
@@ -107,7 +109,7 @@ const DashboardLayout = () => {
                         {item.name}
                       </NavLink>
                     ))}
-                    
+
                     {user?.is_admin && (
                       <div className="mt-8">
                         <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -190,7 +192,7 @@ const DashboardLayout = () => {
                     {item.name}
                   </NavLink>
                 ))}
-                
+
                 {user?.is_admin && (
                   <div className="mt-8">
                     <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -235,7 +237,7 @@ const DashboardLayout = () => {
                   </p>
                 </div>
                 <div className="flex-shrink-0 flex">
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="text-gray-400 hover:text-gray-500 focus:outline-none focus:text-gray-500 transition ease-in-out duration-150"
                   >

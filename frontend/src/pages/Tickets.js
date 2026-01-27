@@ -9,7 +9,8 @@ const Tickets = () => {
   const [filter, setFilter] = useState({
     status: '',
     priority: '',
-    department: ''
+    department: '',
+    search: ''
   });
   const [error, setError] = useState(null);
   const { user, token, isAuthenticated } = useAuth(); // AuthContext'ten kullanıcı bilgisini al
@@ -19,7 +20,7 @@ const Tickets = () => {
       if (!user) {
         return; // Kullanıcı bilgisi yoksa bekle
       }
-      
+
       setLoading(true);
       try {
         const response = await axiosInstance.get('/tickets/');
@@ -47,6 +48,12 @@ const Tickets = () => {
   const filteredTickets = tickets.filter(ticket => {
     if (filter.status && ticket.status !== filter.status) return false;
     if (filter.priority && ticket.priority !== filter.priority) return false;
+    if (filter.search) {
+      const searchLower = filter.search.toLowerCase();
+      const titleMatch = ticket.title.toLowerCase().includes(searchLower);
+      const idMatch = ticket.id.toString().includes(searchLower);
+      if (!titleMatch && !idMatch) return false;
+    }
     return true;
   });
 
@@ -70,8 +77,8 @@ const Tickets = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Destek Talepleri</h1>
-        <Link 
-          to="/tickets/new" 
+        <Link
+          to="/tickets/new"
           className="btn btn-primary"
         >
           Yeni Talep
@@ -97,7 +104,7 @@ const Tickets = () => {
                 <option value="closed">Kapalı</option>
               </select>
             </div>
-            
+
             <div>
               <label htmlFor="priority" className="block text-sm font-medium text-gray-700">Öncelik</label>
               <select
@@ -114,9 +121,22 @@ const Tickets = () => {
                 <option value="critical">Kritik</option>
               </select>
             </div>
+
+            <div>
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700">Arama</label>
+              <input
+                type="text"
+                id="search"
+                name="search"
+                placeholder="Başlık veya ID ile ara..."
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                value={filter.search}
+                onChange={handleFilterChange}
+              />
+            </div>
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           {filteredTickets.length > 0 ? (
             <table className="min-w-full divide-y divide-gray-200">
@@ -166,25 +186,23 @@ const Tickets = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        ticket.status === 'open' ? 'bg-blue-100 text-blue-800' :
-                        ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.status === 'open' ? 'bg-blue-100 text-blue-800' :
+                          ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                        }`}>
                         {ticket.status === 'open' ? 'Açık' :
-                         ticket.status === 'in_progress' ? 'İşlemde' : 'Kapalı'}
+                          ticket.status === 'in_progress' ? 'İşlemde' : 'Kapalı'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        ticket.priority === 'low' ? 'bg-green-100 text-green-800' :
-                        ticket.priority === 'medium' ? 'bg-blue-100 text-blue-800' :
-                        ticket.priority === 'high' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ticket.priority === 'low' ? 'bg-green-100 text-green-800' :
+                          ticket.priority === 'medium' ? 'bg-blue-100 text-blue-800' :
+                            ticket.priority === 'high' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                        }`}>
                         {ticket.priority === 'low' ? 'Düşük' :
-                         ticket.priority === 'medium' ? 'Orta' :
-                         ticket.priority === 'high' ? 'Yüksek' : 'Kritik'}
+                          ticket.priority === 'medium' ? 'Orta' :
+                            ticket.priority === 'high' ? 'Yüksek' : 'Kritik'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

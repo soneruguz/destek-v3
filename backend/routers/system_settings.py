@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
+import shutil
+import os
+from pathlib import Path
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import smtplib
@@ -12,6 +15,10 @@ from database import get_db
 from auth import get_current_active_user
 
 logger = logging.getLogger(__name__)
+
+# Base URL için konfigürasyon (Environment variable'dan al, yoksa varsayılanı kullan)
+import os
+BASE_URL = os.getenv("APP_URL", "https://destek.tesmer.org.tr")
 
 # Helper functions for translations
 def translate_status(status: str) -> str:
@@ -133,7 +140,7 @@ Destek Sistemi"""
                 <p><span class=\"label\">🔔 Durum:</span> {status_tr}</p>
             </div>
             <p style=\"text-align: center;\">
-                <a href=\"http://192.168.0.75:3005/tickets/{ticket.id}\" class=\"button\">Talebi Görüntüle</a>
+                <a href=\"{BASE_URL}/tickets/{ticket.id}\" class=\"button\">Talebi Görüntüle</a>
             </p>
         </div>
         <div class=\"footer\">
@@ -271,7 +278,7 @@ Destek Sistemi"""
             </div>
             
             <p style="text-align: center;">
-                <a href="http://192.168.0.75:3005/tickets/{ticket.id}" class="button">Talebi Görüntüle</a>
+                <a href="{BASE_URL}/tickets/{ticket.id}" class="button">Talebi Görüntüle</a>
             </p>
         </div>
         <div class="footer">
@@ -404,7 +411,7 @@ Destek Sistemi"""
                 <p><span class=\"label\">🔔 Durum:</span> {status_tr}</p>
             </div>
             <p style=\"text-align: center;\">
-                <a href=\"http://192.168.0.75:3005/tickets/{ticket.id}\" class=\"button\">Talebi Görüntüle ve İşle</a>
+                <a href=\"{BASE_URL}/tickets/{ticket.id}\" class=\"button\">Talebi Görüntüle ve İşle</a>
             </p>
         </div>
         <div class=\"footer\">
@@ -443,6 +450,8 @@ Destek Sistemi"""
         )
     except Exception as e:
         logger.error(f"Failed to send department email: {str(e)}", exc_info=True)
+
+def send_comment_notification_email(db: Session, ticket: models.Ticket, commenter: models.User, recipient: models.User, comment: models.Comment):
     """Send email when someone adds a comment to a ticket"""
     try:
         email_config = db.query(models.EmailConfig).first()
@@ -503,7 +512,7 @@ Destek Sistemi"""
             </div>
             
             <p style="text-align: center;">
-                <a href="http://192.168.0.75:3005/tickets/{ticket.id}" class="button">Görüşmeleri Gör</a>
+                <a href="{BASE_URL}/tickets/{ticket.id}" class="button">Görüşmeleri Gör</a>
             </p>
         </div>
         <div class="footer">
@@ -616,7 +625,7 @@ def send_ticket_updated_email(db: Session, ticket: models.Ticket, updater: model
                 </div>
             </div>
             <p style="text-align: center;">
-                <a href="http://192.168.0.75:3005/tickets/{ticket.id}" class="button">Detayları Görüntüle</a>
+                <a href="{BASE_URL}/tickets/{ticket.id}" class="button">Detayları Görüntüle</a>
             </p>
         </div>
         <div class="footer">
@@ -719,7 +728,7 @@ Destek Sistemi"""
             </div>
             
             <p style="text-align: center;">
-                <a href="http://192.168.0.75:3005/tickets/{ticket.id}" class="button">Detayları Görüntüle</a>
+                <a href="{BASE_URL}/tickets/{ticket.id}" class="button">Detayları Görüntüle</a>
             </p>
         </div>
         <div class="footer">
@@ -794,6 +803,67 @@ def get_email_config(
     current_user: models.User = Depends(get_current_active_user)
 ):
     """Get the email configuration"""
+    config = db.query(models.EmailConfig).first()
+    if not config:
+        return models.EmailConfig()
+    return config
+
+@router.post("/upload-logo")
+async def upload_logo(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """Upload a custom system logo"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can manage system settings"
+        )
+    
+    # Validate file type
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image"
+        )
+    
+    # Create branding directory if not exists
+    upload_dir = os.environ.get("UPLOAD_DIR", "/app/uploads")
+    branding_dir = os.path.join(upload_dir, "branding")
+    os.makedirs(branding_dir, exist_ok=True)
+    
+    # Generate filename (keep extension)
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"custom_logo{ext}"
+    file_path = os.path.join(branding_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Update config in DB
+        config = db.query(models.GeneralConfig).first()
+        if not config:
+            config = models.GeneralConfig()
+            db.add(config)
+        
+        # URL relative to /uploads
+        # Note: Frontend will prepend the API/Uploads base URL
+        # We store: /branding/custom_logo.png
+        relative_path = f"/branding/{filename}"
+        config.custom_logo_url = relative_path
+        db.commit()
+        
+        return {"url": relative_path}
+        
+    except Exception as e:
+        logger.error(f"Logo upload failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save logo file"
+        )
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1081,6 +1151,10 @@ def get_public_settings(db: Session = Depends(get_db)):
         db.commit()
     
     return {
+        "enable_teos_id": general_config.enable_teos_id,
+        "enable_citizenship_no": general_config.enable_citizenship_no,
+        "require_teos_id": general_config.require_teos_id,
+        "require_citizenship_no": general_config.require_citizenship_no,
         "general": {
             "app_name": general_config.app_name,
             "app_version": general_config.app_version,
@@ -1176,7 +1250,24 @@ def get_system_settings(
             "max_file_size_mb": general_config.max_file_size_mb,
             "allowed_file_types": general_config.allowed_file_types,
             "email_notifications_enabled": general_config.email_notifications_enabled,
-            "ldap_enabled": general_config.ldap_enabled
+            "ldap_enabled": general_config.ldap_enabled,
+            "upload_directory": general_config.upload_directory,
+            "default_department_id": general_config.default_department_id,
+            "require_manager_assignment": general_config.require_manager_assignment,
+            # Workflow & Triage
+            "workflow_enabled": general_config.workflow_enabled,
+            "triage_user_id": general_config.triage_user_id,
+            "triage_department_id": general_config.triage_department_id,
+            # Escalation
+            "escalation_enabled": general_config.escalation_enabled,
+            "escalation_target_user_id": general_config.escalation_target_user_id,
+            "escalation_target_department_id": general_config.escalation_target_department_id,
+            # Timeouts
+            "timeout_critical": general_config.timeout_critical,
+            "timeout_high": general_config.timeout_high,
+            "timeout_medium": general_config.timeout_medium,
+            "timeout_low": general_config.timeout_low,
+            "custom_logo_url": general_config.custom_logo_url
         },
         "email": email_response,
         "notifications": {

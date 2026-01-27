@@ -10,6 +10,24 @@ function Login() {
   const { login: authLogin } = useAuth();
   const navigate = useNavigate();
 
+  const [logoUrl, setLogoUrl] = useState(null);
+
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await axiosInstance.get('/config');
+        if (res.data.custom_logo_url) {
+          // Base URL handling for image
+          const baseUrl = axiosInstance.defaults.baseURL.replace('/api', '');
+          setLogoUrl(`${baseUrl}/uploads${res.data.custom_logo_url}`);
+        }
+      } catch (err) {
+        console.error('Config load error:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -28,13 +46,21 @@ function Login() {
       });
 
       const data = response.data;
-      
+
+
+      // Check if we have the required fields
+      if (!data || !data.access_token) {
+        console.error('Invalid response from server:', data);
+        setError('Sunucudan geçersiz yanıt alındı. Lütfen tekrar deneyin.');
+        return;
+      }
+
       // Login with token and user data
-      authLogin(data.access_token, data.user);
-      
+      authLogin(data.access_token, data.user || {});
+
       // Navigate immediately
       navigate('/');
-      
+
     } catch (err) {
       console.error('Login error:', err);
       setError('Giriş başarısız. Lütfen bilgilerinizi kontrol edin.');
@@ -47,6 +73,11 @@ function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-2 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6">
         <div>
+          <div className="flex justify-center mb-4">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-24 w-auto object-contain" />
+            ) : null}
+          </div>
           <h2 className="text-center text-3xl font-extrabold text-gray-900">
             Destek Sistemi
           </h2>
@@ -68,7 +99,7 @@ function Login() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Kullanıcı adı"
                 value={credentials.username}
-                onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
               />
             </div>
             <div>
@@ -78,7 +109,7 @@ function Login() {
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Şifre"
                 value={credentials.password}
-                onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
               />
             </div>
           </div>
@@ -92,7 +123,7 @@ function Login() {
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </button>
           </div>
-          
+
         </form>
       </div>
     </div>

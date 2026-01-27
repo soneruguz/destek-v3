@@ -20,10 +20,7 @@ def init_database():
     # Check if admin user already exists
     admin = db.query(User).filter(User.username == "admin").first()
     if admin:
-        print("Admin user already exists, updating password...")
-        admin.hashed_password = get_password_hash("admin")
-        db.commit()
-        print("Admin password updated to 'admin'")
+        print("Admin user already exists.")
     else:
         print("Creating admin user...")
         # Create admin user with password 'admin'

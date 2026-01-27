@@ -144,6 +144,8 @@ class Ticket(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_escalation_at = Column(DateTime, nullable=True)  # Son otomatik atama zamanı
+    escalation_count = Column(Integer, default=0)         # Kaç kez otomatik atandı
     
     # Foreign Keys
     creator_id = Column(Integer, ForeignKey("users.id"))
@@ -261,6 +263,7 @@ class Notification(Base):
     message = Column(Text)
     type = Column(String(50))  # info, warning, error, success
     is_read = Column(Boolean, default=False)
+    related_id = Column(Integer, nullable=True) # İlgili ticket veya wiki ID'si
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Foreign Keys
@@ -278,10 +281,18 @@ class NotificationSettings(Base):
     # Bildirim tercihleri
     email_notifications = Column(Boolean, default=True)
     browser_notifications = Column(Boolean, default=True)
+    
+    # Ticket bildirimleri
+    ticket_created = Column(Boolean, default=True)
     ticket_assigned = Column(Boolean, default=True)
     ticket_updated = Column(Boolean, default=True)
     ticket_commented = Column(Boolean, default=True)
     ticket_attachment = Column(Boolean, default=True)
+    
+    # Wiki bildirimleri
+    wiki_created = Column(Boolean, default=True)
+    wiki_updated = Column(Boolean, default=True)
+    wiki_shared = Column(Boolean, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -322,6 +333,8 @@ class GeneralConfig(Base):
     smtp_password = Column(String(100))
     ldap_enabled = Column(Boolean, default=False)
     ldap_server = Column(String(100))
+    # Logo URL (relative to /uploads)
+    custom_logo_url = Column(String(500), nullable=True)
     ldap_port = Column(Integer, default=389)
     ldap_base_dn = Column(String(200))
     ldap_user_filter = Column(String(200))
@@ -334,6 +347,22 @@ class GeneralConfig(Base):
     require_manager_assignment = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Workflow & Triage Settings
+    workflow_enabled = Column(Boolean, default=False)
+    triage_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    triage_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    
+    # Escalation Settings
+    escalation_enabled = Column(Boolean, default=False)
+    escalation_target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    escalation_target_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    
+    # Timeouts (in minutes)
+    timeout_critical = Column(Integer, default=60)    # 1 hour
+    timeout_high = Column(Integer, default=240)       # 4 hours
+    timeout_medium = Column(Integer, default=480)     # 8 hours
+    timeout_low = Column(Integer, default=1440)       # 24 hours
 
 class EmailConfig(Base):
     __tablename__ = "email_config"

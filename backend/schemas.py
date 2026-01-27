@@ -60,6 +60,12 @@ class DepartmentCreate(DepartmentBase):
 class TicketCreate(TicketBase):
     department_id: int
 
+    @validator('title', 'description')
+    def not_empty(cls, v):
+        if not v or not v.strip() or v.strip() == '<p></p>' or v.strip() == '<p><br></p>':
+            raise ValueError('Bu alan boş bırakılamaz')
+        return v
+
 class CommentCreate(CommentBase):
     pass
 
@@ -73,6 +79,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
+    is_ldap: Optional[bool] = None
     department_ids: Optional[List[int]] = None
     browser_notification_token: Optional[str] = None
 
@@ -91,6 +98,13 @@ class TicketUpdate(BaseModel):
     is_private: Optional[bool] = None
     teos_id: Optional[str] = None
     citizenship_no: Optional[str] = None
+
+    @validator('title', 'description')
+    def not_empty(cls, v):
+        if v is not None:
+            if not v.strip() or v.strip() == '<p></p>' or v.strip() == '<p><br></p>':
+                raise ValueError('Bu alan boş bırakılamaz')
+        return v
 
 # Ticket paylaşım şeması
 class TicketShare(BaseModel):
@@ -180,6 +194,8 @@ class Ticket(TicketBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
+    last_escalation_at: Optional[datetime] = None
+    escalation_count: int = 0
     
     # İlişkileri düzgün şekilde dahil etmek için 
     creator: Optional[UserResponse] = None
@@ -334,10 +350,14 @@ class NotificationResponse(NotificationBase):
 class NotificationSettingsBase(BaseModel):
     email_notifications: bool = True
     browser_notifications: bool = True
+    ticket_created: bool = True
     ticket_assigned: bool = True
     ticket_updated: bool = True
     ticket_commented: bool = True
     ticket_attachment: bool = True
+    wiki_created: bool = True
+    wiki_updated: bool = True
+    wiki_shared: bool = True
 
 class NotificationSettingsCreate(NotificationSettingsBase):
     user_id: int
@@ -456,6 +476,22 @@ class GeneralConfigBase(BaseModel):
     require_citizenship_no: bool = False
     # Birim yöneticisi atama ayarı
     require_manager_assignment: bool = False
+    
+    # Triage Settings
+    workflow_enabled: bool = False
+    triage_user_id: Optional[int] = None
+    triage_department_id: Optional[int] = None
+    
+    # Escalation Settings
+    escalation_enabled: bool = False
+    escalation_target_user_id: Optional[int] = None
+    escalation_target_department_id: Optional[int] = None
+    
+    # Timeouts
+    timeout_critical: int = 60
+    timeout_high: int = 240
+    timeout_medium: int = 480
+    timeout_low: int = 1440
 
 class GeneralConfigCreate(GeneralConfigBase):
     pass

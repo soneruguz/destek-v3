@@ -6,7 +6,7 @@ import logging
 import models
 from database import get_db, engine
 from auth import router as auth_router
-from routers import tickets, notifications, users, departments, wikis, system_settings, login_logs
+from routers import tickets, notifications, users, departments, wikis, system_settings, login_logs, reports
 
 # Logging
 logging.basicConfig(level=logging.DEBUG)
@@ -25,7 +25,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # CORS - Ortam değişkeninden okunur, yoksa localhost
 import os
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3005").split(",")
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3005,https://destek.tesmer.org.tr,https://destekapi.tesmer.org.tr,https://devdestek.tesmer.org.tr,https://devdestekapi.tesmer.org.tr").split(",")
 cors_origins = [origin.strip() for origin in cors_origins]
 
 app.add_middleware(
@@ -51,12 +51,20 @@ app.include_router(wikis.router, prefix="/api/wikis")
 app.include_router(system_settings.router, prefix="/api/settings")
 app.include_router(login_logs.router, prefix="/api/login-logs")
 app.include_router(notifications.router, prefix="/api/notifications")
+app.include_router(reports.router, prefix="/api/reports")
 
 # Sadece temel endpoint'ler - ticket endpoint'leri routers/tickets.py'de
 
 # NOT: /departments ve /users endpoint'leri routers/departments.py ve routers/users.py'de zaten tanımlı
 # FastAPI'de çift dekoratör (örn. @app.get("/users") ve @app.get("/users/")) sonsuz döngü yaratır
 # Routers zaten tüm endpoint'leri yönetiyor; buradaki ek tanımları siliyoruz
+
+@app.on_event("startup")
+async def start_tasks():
+    from utils.workflow_worker import run_auto_escalation
+    import asyncio
+    asyncio.create_task(run_auto_escalation())
+    logger.info("Background tasks started (Escalation worker)")
 
 @app.on_event("startup")
 async def startup_event():
@@ -131,6 +139,7 @@ async def startup_event():
 
 @app.get("/config/")
 @app.get("/config")
+@app.get("/api/config")
 async def get_config(db: Session = Depends(get_db)):
     """Frontend configuration"""
     try:
@@ -140,6 +149,7 @@ async def get_config(db: Session = Depends(get_db)):
         if general_config:
             return {
                 "app_name": general_config.app_name,
+                "custom_logo_url": general_config.custom_logo_url,
                 "version": general_config.app_version,
                 "enable_teos_id": general_config.enable_teos_id,
                 "enable_citizenship_no": general_config.enable_citizenship_no,
@@ -152,6 +162,7 @@ async def get_config(db: Session = Depends(get_db)):
                 },
                 "notification_types": ["info", "warning", "error", "success"]
             }
+        # ...existing code...
         else:
             # Default değerler
             return {
@@ -185,3 +196,20 @@ async def get_config(db: Session = Depends(get_db)):
             },
             "notification_types": ["info", "warning", "error", "success"]
         }
+
+
+# WebSocket endpointi dosyanın en altına taşındı
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"Echo: {data}")
+    except WebSocketDisconnect:
+        logger.info("WebSocket bağlantısı kapatıldı.")
+                
+
+        

@@ -19,7 +19,7 @@ const NewTicket = () => {
     require_teos_id: false,
     require_citizenship_no: false
   });
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -32,13 +32,14 @@ const NewTicket = () => {
     teos_id: '',
     citizenship_no: ''
   });
-  
+
   // State'leri düzelt - kullanılmayanları kaldır
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [tempFiles, setTempFiles] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [showSharingOptions, setShowSharingOptions] = useState(false);
   const editorRef = useRef(null);
 
   useEffect(() => {
@@ -49,11 +50,11 @@ const NewTicket = () => {
           axiosInstance.get('/users/?active_only=true'),  // Sadece aktif kullanıcılar
           axiosInstance.get('/settings/public/config')  // Public endpoint - authentication gerektirmez
         ]);
-        
+
         setDepartments(departmentsRes.data);
         setUsers(usersRes.data);
         setSystemConfig(configRes.data);
-        
+
         // Default departmanı ayarla - settings'ten gelmişse onu kullan, yoksa ilk departmanı
         let defaultDeptId = null;
         if (configRes.data.general?.default_department_id) {
@@ -61,12 +62,12 @@ const NewTicket = () => {
         } else if (departmentsRes.data.length > 0) {
           defaultDeptId = departmentsRes.data[0].id;
         }
-        
+
         if (defaultDeptId) {
           const defaultDept = departmentsRes.data.find(d => d.id === defaultDeptId);
           if (defaultDept) {
-            setFormData(prev => ({ 
-              ...prev, 
+            setFormData(prev => ({
+              ...prev,
               department_id: [{ value: defaultDept.id, label: defaultDept.name }]
             }));
           }
@@ -84,7 +85,7 @@ const NewTicket = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     if (type === 'checkbox') {
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
@@ -101,19 +102,19 @@ const NewTicket = () => {
       const clipboardData = e.clipboardData;
       if (clipboardData && clipboardData.getData) {
         const html = clipboardData.getData('text/html');
-        
+
         if (html && html.includes('<table')) {
           e.preventDefault();
-          
+
           const cleanHtml = html
             .replace(/<table/g, '<table style="border-collapse: collapse; width: 100%; margin: 8px 0;"')
             .replace(/<t[dh]/g, '<td style="border: 1px solid #ccc; padding: 8px;"')
             .replace(/<th/g, '<th style="border: 1px solid #ccc; padding: 8px; background-color: #f2f2f2; font-weight: bold;"');
-          
+
           const quill = editorRef.current.getEditor();
           const range = quill.getSelection();
           const position = range ? range.index : 0;
-          
+
           quill.clipboard.dangerouslyPasteHTML(position, cleanHtml);
         }
       }
@@ -126,25 +127,38 @@ const NewTicket = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    // Description'daki boş HTML'leri temizle
+    let cleanedDescription = formData.description.trim();
+    // Quill'in boş HTML'lerini sil
+    cleanedDescription = cleanedDescription.replace(/<p><br><\/p>/g, '');
+    cleanedDescription = cleanedDescription.replace(/<p>\s*<\/p>/g, '');
+    cleanedDescription = cleanedDescription.replace(/<p>&nbsp;<\/p>/g, '');
+    cleanedDescription = cleanedDescription.trim();
+
+    if (!cleanedDescription || cleanedDescription === '') {
+      addToast('Açıklama alanı boş bırakılamaz', 'error');
+      return;
+    }
+
     if (systemConfig.require_teos_id && !formData.teos_id) {
       addToast('Teos ID alanı zorunludur', 'error');
       return;
     }
-    
+
     if (systemConfig.require_citizenship_no && !formData.citizenship_no) {
       addToast('Vatandaşlık numarası alanı zorunludur', 'error');
       return;
     }
-    
+
     // Dosya türü ve boyut kontrolü
     const maxFileSizeMB = systemConfig.max_file_size_mb || 10;
     const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
-    
+
     const allowedExtensions = (systemConfig.allowed_file_types || 'pdf,doc,docx,jpg,jpeg,png')
       .split(',')
       .map(ext => ext.trim().toLowerCase());
-    
+
     for (const file of tempFiles) {
       // Boyut kontrolü
       if (file.size > maxFileSizeBytes) {
@@ -152,7 +166,7 @@ const NewTicket = () => {
         setSubmitting(false);
         return;
       }
-      
+
       // Dosya türü kontrolü
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
       if (fileExtension && !allowedExtensions.includes(fileExtension)) {
@@ -161,22 +175,14 @@ const NewTicket = () => {
         return;
       }
     }
-    
+
     setSubmitting(true);
 
     try {
-      // Description'daki boş HTML'leri temizle
-      let cleanedDescription = formData.description.trim();
-      // Quill'in boş HTML'lerini sil
-      cleanedDescription = cleanedDescription.replace(/<p><br><\/p>/g, '');
-      cleanedDescription = cleanedDescription.replace(/<p>\s*<\/p>/g, '');
-      cleanedDescription = cleanedDescription.replace(/<p>&nbsp;<\/p>/g, '');
-      cleanedDescription = cleanedDescription.trim();
-      
       const submitData = {
         ...formData,
         description: cleanedDescription,
-        department_id: Array.isArray(formData.department_id) 
+        department_id: Array.isArray(formData.department_id)
           ? formData.department_id[0]?.value || formData.department_id[0]
           : formData.department_id,
         assignee_id: Array.isArray(formData.assignee_id)
@@ -185,23 +191,23 @@ const NewTicket = () => {
         shared_with_users: (formData.shared_with_users || []).map(user => user.value),
         shared_with_departments: (formData.shared_with_departments || []).map(dept => dept.value)
       };
-      
+
       const response = await axiosInstance.post('/tickets/', submitData);
       const createdTicketId = response.data.id;
-      
+
       if (tempFiles.length > 0) {
         setUploadingFiles(true);
         let uploadError = false;
-        
+
         for (const file of tempFiles) {
-          
+
           const fileFormData = new FormData();
           fileFormData.append('file', file);
-          
+
           try {
             const uploadResponse = await axiosInstance.post(
-              `/tickets/${createdTicketId}/attachments/`, 
-              fileFormData, 
+              `/tickets/${createdTicketId}/attachments/`,
+              fileFormData,
               {
                 headers: {
                   'Content-Type': 'multipart/form-data'
@@ -214,7 +220,7 @@ const NewTicket = () => {
             console.error('Error status:', error.response?.status);
             addToast(`${file.name} dosyası yüklenirken hata oluştu`, 'error');
             uploadError = true;
-            
+
             // Dosya yükleme hatası varsa talebi sil
             try {
               await axiosInstance.delete(`/tickets/${createdTicketId}`);
@@ -226,19 +232,19 @@ const NewTicket = () => {
             break;
           }
         }
-        
+
         if (uploadError) {
           setUploadingFiles(false);
           setSubmitting(false);
           return;
         }
-        
+
         setUploadingFiles(false);
       }
-      
+
       addToast('Destek talebi başarıyla oluşturuldu', 'success');
       navigate(`/tickets/${createdTicketId}`);
-      
+
     } catch (err) {
       console.error('Error creating ticket:', err);
       setError('Destek talebi oluşturulurken bir hata oluştu.');
@@ -262,8 +268,8 @@ const NewTicket = () => {
   const modules = {
     toolbar: [
       ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+      [{ 'indent': '-1' }, { 'indent': '+1' }],
       [{ 'align': [] }],
       [{ 'color': [] }, { 'background': [] }],
       ['link'],
@@ -306,10 +312,10 @@ const NewTicket = () => {
   // Departman değiştiğinde kullanıcı listesini filtrele - array kontrolü ekle
   const filteredUsers = formData.department_id && Array.isArray(formData.department_id) && formData.department_id.length > 0
     ? users.filter(user => {
-        return formData.department_id.some(selectedDept => 
-          user.department_id === selectedDept.value
-        );
-      })
+      return formData.department_id.some(selectedDept =>
+        user.department_id === selectedDept.value
+      );
+    })
     : [];
 
   return (
@@ -330,12 +336,12 @@ const NewTicket = () => {
             <div className="col-span-12 lg:col-span-8 space-y-4">
               <div className="form-group">
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700">Başlık</label>
-                <input 
-                  type="text" 
-                  id="title" 
-                  name="title" 
-                  value={formData.title} 
-                  onChange={handleChange} 
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   required
                 />
@@ -362,10 +368,9 @@ const NewTicket = () => {
               <div className="form-group">
                 <label className="block text-sm font-medium text-gray-700">Dosya Ekleri</label>
                 <div className="mt-1">
-                  <div 
-                    className={`border-2 border-dashed rounded-md p-4 cursor-pointer transition-colors ${
-                      isDragActive ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400'
-                    }`}
+                  <div
+                    className={`border-2 border-dashed rounded-md p-4 cursor-pointer transition-colors ${isDragActive ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400'
+                      }`}
                     {...getRootProps()}
                   >
                     <input
@@ -374,7 +379,7 @@ const NewTicket = () => {
                       type="file"
                       className="sr-only"
                       multiple
-                      // HTML input accept özelliğini de kaldır
+                    // HTML input accept özelliğini de kaldır
                     />
                     <p className="text-center">
                       <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,7 +394,7 @@ const NewTicket = () => {
                       Maksimum dosya boyutu: {systemConfig.max_file_size_mb || 10}MB
                     </p>
                   </div>
-                  
+
                   {tempFiles.length > 0 && (
                     <ul className="mt-3 divide-y divide-gray-100 max-h-40 overflow-y-auto">
                       {tempFiles.map((file, index) => (
@@ -406,8 +411,8 @@ const NewTicket = () => {
                               {file.size < 1024
                                 ? `${file.size} B`
                                 : file.size < 1024 * 1024
-                                ? `${(file.size / 1024).toFixed(1)} KB`
-                                : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                                  ? `${(file.size / 1024).toFixed(1)} KB`
+                                  : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
                             </span>
                           </div>
                           <button
@@ -443,8 +448,8 @@ const NewTicket = () => {
                           placeholder="Departman seçin..."
                           value={formData.department_id}
                           onChange={(selected) => {
-                            setFormData(prev => ({ 
-                              ...prev, 
+                            setFormData(prev => ({
+                              ...prev,
                               department_id: selected || [],
                               assignee_id: [] // Departman değişince kullanıcı seçimini sıfırla
                             }));
@@ -512,12 +517,12 @@ const NewTicket = () => {
                           {!formData.department_id || formData.department_id.length === 0
                             ? "Önce departman seçin"
                             : filteredUsers.length === 0
-                            ? "Seçilen departmanlarda aktif kullanıcı bulunamadı"
-                            : formData.assignee_id && formData.assignee_id.some(a => a.value === 'department')
-                            ? "Seçilen departmanlardaki herkes bu talebi görebilir ve kendine atayabilir"
-                            : formData.assignee_id && formData.assignee_id.length > 0
-                            ? "Sadece seçilen kişiler bu talep üzerinde çalışabilir"
-                            : "Atama türü seçin"
+                              ? "Seçilen departmanlarda aktif kullanıcı bulunamadı"
+                              : formData.assignee_id && formData.assignee_id.some(a => a.value === 'department')
+                                ? "Seçilen departmanlardaki herkes bu talebi görebilir ve kendine atayabilir"
+                                : formData.assignee_id && formData.assignee_id.length > 0
+                                  ? "Sadece seçilen kişiler bu talep üzerinde çalışabilir"
+                                  : "Atama türü seçin"
                           }
                           {filteredUsers.length > 0 && (
                             <span className="block">
@@ -529,11 +534,11 @@ const NewTicket = () => {
 
                       <div className="form-group">
                         <label htmlFor="priority" className="block text-xs font-medium text-gray-700">Öncelik</label>
-                        <select 
-                          id="priority" 
-                          name="priority" 
-                          value={formData.priority} 
-                          onChange={handleChange} 
+                        <select
+                          id="priority"
+                          name="priority"
+                          value={formData.priority}
+                          onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                         >
                           <option value="low">Düşük</option>
@@ -563,76 +568,91 @@ const NewTicket = () => {
                 </div>
               </div>
               <div className={`bg-gray-50 rounded-lg p-3 ${formData.is_private ? 'opacity-50' : ''}`}>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Paylaşım Seçenekleri</h3>
-                <div className="space-y-3">
-                  <div className="form-group">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Kullanıcılarla Paylaş</label>
-                    <Select
-                      isMulti
-                      name="shared_with_users"
-                      options={userOptions}
-                      className="basic-multi-select"
-                      classNamePrefix="select"
-                      placeholder="Kullanıcı seçin..."
-                      onChange={(selected) => setFormData(prev => ({ ...prev, shared_with_users: selected || [] }))}
-                      isDisabled={formData.is_private}
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          minHeight: '30px',
-                          height: '30px'
-                        }),
-                        valueContainer: (base) => ({
-                          ...base,
-                          padding: '0 8px'
-                        }),
-                        input: (base) => ({
-                          ...base,argin: '0px',
-                          margin: '0px',
-                        }),
-                        indicatorsContainer: (base) => ({
-                          ...base,eight: '30px',
-                          height: '30px',
-                        })
-                      }}
-                    />
-                    {formData.is_private && (
-                      <p className="text-xs text-gray-500 mt-1">Gizli talepler paylaşılamaz.</p>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Departmanlarla Paylaş</label>
-                    <Select
-                      isMulti
-                      name="shared_with_departments"
-                      options={departmentOptions}
-                      className="basic-multi-select"
-                      classNamePrefix="select"
-                      placeholder="Departman seçin..."
-                      onChange={(selected) => setFormData(prev => ({ ...prev, shared_with_departments: selected || [] }))}
-                      isDisabled={formData.is_private}
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          minHeight: '30px',
-                          height: '30px'
-                        }),
-                        valueContainer: (base) => ({
-                          ...base,
-                          padding: '0 8px'
-                        }),
-                        input: (base) => ({
-                          ...base,argin: '0px',
-                          margin: '0px',
-                        }),
-                        indicatorsContainer: (base) => ({
-                          ...base,eight: '30px',
-                          height: '30px',
-                        })
-                      }}
-                    />
-                  </div>
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    id="show_sharing"
+                    checked={showSharingOptions}
+                    onChange={(e) => setShowSharingOptions(e.target.checked)}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    disabled={formData.is_private}
+                  />
+                  <label htmlFor="show_sharing" className="ml-2 block text-sm font-medium text-gray-900 select-none cursor-pointer">
+                    Paylaşım Seçenekleri
+                  </label>
                 </div>
+
+                {showSharingOptions && (
+                  <div className="space-y-3 pl-6 border-l-2 border-gray-200 ml-2">
+                    <div className="form-group">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Kullanıcılarla Paylaş</label>
+                      <Select
+                        isMulti
+                        name="shared_with_users"
+                        options={userOptions}
+                        className="basic-multi-select"
+                        classNamePrefix="select"
+                        placeholder="Kullanıcı seçin..."
+                        onChange={(selected) => setFormData(prev => ({ ...prev, shared_with_users: selected || [] }))}
+                        isDisabled={formData.is_private}
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            minHeight: '30px',
+                            height: '30px'
+                          }),
+                          valueContainer: (base) => ({
+                            ...base,
+                            padding: '0 8px'
+                          }),
+                          input: (base) => ({
+                            ...base, argin: '0px',
+                            margin: '0px',
+                          }),
+                          indicatorsContainer: (base) => ({
+                            ...base, eight: '30px',
+                            height: '30px',
+                          })
+                        }}
+                      />
+                      {formData.is_private && (
+                        <p className="text-xs text-gray-500 mt-1">Gizli talepler paylaşılamaz.</p>
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Departmanlarla Paylaş</label>
+                      <Select
+                        isMulti
+                        name="shared_with_departments"
+                        options={departmentOptions}
+                        className="basic-multi-select"
+                        classNamePrefix="select"
+                        placeholder="Departman seçin..."
+                        onChange={(selected) => setFormData(prev => ({ ...prev, shared_with_departments: selected || [] }))}
+                        isDisabled={formData.is_private}
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            minHeight: '30px',
+                            height: '30px'
+                          }),
+                          valueContainer: (base) => ({
+                            ...base,
+                            padding: '0 8px'
+                          }),
+                          input: (base) => ({
+                            ...base, argin: '0px',
+                            margin: '0px',
+                          }),
+                          indicatorsContainer: (base) => ({
+                            ...base, eight: '30px',
+                            height: '30px',
+                          })
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               {(systemConfig.enable_teos_id || systemConfig.enable_citizenship_no) && (
                 <div className="bg-gray-50 rounded-lg p-3">
@@ -643,12 +663,12 @@ const NewTicket = () => {
                         <label htmlFor="teos_id" className="block text-xs font-medium text-gray-700">
                           Teos ID {systemConfig.require_teos_id && <span className="text-red-500">*</span>}
                         </label>
-                        <input 
-                          type="text" 
-                          id="teos_id" 
-                          name="teos_id" 
-                          value={formData.teos_id} 
-                          onChange={handleChange} 
+                        <input
+                          type="text"
+                          id="teos_id"
+                          name="teos_id"
+                          value={formData.teos_id}
+                          onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                           required={systemConfig.require_teos_id}
                         />
@@ -659,12 +679,12 @@ const NewTicket = () => {
                         <label htmlFor="citizenship_no" className="block text-xs font-medium text-gray-700">
                           Vatandaşlık No {systemConfig.require_citizenship_no && <span className="text-red-500">*</span>}
                         </label>
-                        <input 
-                          type="text" 
-                          id="citizenship_no" 
-                          name="citizenship_no" 
-                          value={formData.citizenship_no} 
-                          onChange={handleChange} 
+                        <input
+                          type="text"
+                          id="citizenship_no"
+                          name="citizenship_no"
+                          value={formData.citizenship_no}
+                          onChange={handleChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 text-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                           required={systemConfig.require_citizenship_no}
                         />
@@ -676,15 +696,15 @@ const NewTicket = () => {
             </div>
           </div>
           <div className="flex items-center justify-end pt-2">
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="bg-white py-1.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               onClick={() => navigate('/tickets')}
             >
               İptal
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="ml-3 inline-flex justify-center py-1.5 px-3 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               disabled={submitting || uploadingFiles}
             >

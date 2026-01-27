@@ -4,7 +4,7 @@ echo "Docker temizleniyor ve sistem yeniden başlatılıyor..."
 
 # Tüm konteynerleri durdur
 echo "Tüm konteynerleri durduruyorum..."
-docker-compose down
+docker compose down
 
 # Docker volume'lerini temizle
 echo "Eski volume'leri temizliyorum..."
@@ -16,7 +16,7 @@ docker system prune -f
 
 # Projeyi tekrar başlat
 echo "Projeyi yeniden başlatıyorum..."
-docker-compose up -d --build
+docker compose up -d --build --no-cache
 
 # Backend konteynerine girip models.py dosyasını kontrol et
 echo "Backend konteynerine bağlanıp init_db.py çalıştırılıyor..."
