@@ -1,12 +1,12 @@
 // API configuration for the application
 // This file centralizes all API endpoint URLs to make it easier to manage
 
-// Base API URL - relative kullan (Mixed Content hatası önlemek için)
+// Base API URL - boş bırak, axios baseURL zaten /api
 // Uploads için: /uploads
-// API endpoints için: /api
-const API_URL = '/api';
+// API endpoints için: /api (axios baseURL'de tanımlı)
+const API_URL = '';
 
-// API routes - /api prefix'i ile
+// API routes - axios baseURL '/api' olduğu için prefix yok
 const API_ROUTES = {
   // Auth related endpoints
   LOGIN: `${API_URL}/auth/token`,
