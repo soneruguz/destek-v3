@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // Backend ayrı domain'de (destekapi.tesmer.org.tr)
-// Production build'de relative path çalışmaz, tam URL kullanmalıyız
-const API_BASE_URL = '/api';
+// Zorla current origin + /api kullan (Mixed Content önleme)
+const API_BASE_URL = `${window.location.origin}/api`;
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
