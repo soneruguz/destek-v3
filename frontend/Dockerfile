@@ -1,5 +1,8 @@
 FROM node:16-alpine AS builder
 
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+
 WORKDIR /app
 
 # System setup
@@ -13,9 +16,6 @@ COPY ./frontend/package*.json ./
 # Install dependencies
 RUN npm install && \
     npm cache clean --force
-
-# Copy .env file for build-time environment variables
-COPY .env .env
 
 # Copy application code
 COPY ./frontend .

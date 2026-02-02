@@ -45,6 +45,8 @@ services:
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
     container_name: destek-frontend-1
     ports:
       - "3005:3000"
