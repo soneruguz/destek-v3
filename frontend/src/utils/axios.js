@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Backend ayrı domain'de (destekapi.tesmer.org.tr)
 // Production build'de relative path çalışmaz, tam URL kullanmalıyız
-const API_BASE_URL = 'https://devdestekapi.tesmer.org.tr/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://devdestekapi.tesmer.org.tr/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

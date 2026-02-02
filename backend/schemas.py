@@ -506,3 +506,243 @@ class GeneralConfigResponse(GeneralConfigBase):
     
     class Config:
         orm_mode = True
+
+
+# ==================== EXTERNAL API SCHEMAS ====================
+# Harici uygulamalar için API entegrasyonu şemaları
+
+class TicketSourceEnum(str, Enum):
+    """Talep kaynağı"""
+    WEB = "web"
+    API = "api"
+    EMAIL = "email"
+    MOBILE = "mobile"
+
+
+# API Client Schemas
+class ApiClientBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    can_create_tickets: bool = True
+    can_read_tickets: bool = True
+    can_update_tickets: bool = False
+    can_add_comments: bool = True
+    allowed_departments: Optional[List[int]] = None
+    rate_limit_per_minute: int = 60
+    default_department_id: Optional[int] = None
+    contact_user_id: Optional[int] = None
+
+
+class ApiClientCreate(ApiClientBase):
+    pass
+
+
+class ApiClientUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    can_create_tickets: Optional[bool] = None
+    can_read_tickets: Optional[bool] = None
+    can_update_tickets: Optional[bool] = None
+    can_add_comments: Optional[bool] = None
+    allowed_departments: Optional[List[int]] = None
+    rate_limit_per_minute: Optional[int] = None
+    default_department_id: Optional[int] = None
+    contact_user_id: Optional[int] = None
+
+
+class ApiClientResponse(ApiClientBase):
+    id: int
+    api_key: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    last_used_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True
+
+
+class ApiClientWithSecret(ApiClientResponse):
+    """API oluşturulduğunda bir kez gösterilen secret"""
+    api_secret: str  # Sadece oluşturma anında gösterilir
+
+
+# Webhook Schemas
+class WebhookEventTypeEnum(str, Enum):
+    TICKET_CREATED = "ticket.created"
+    TICKET_UPDATED = "ticket.updated"
+    TICKET_STATUS_CHANGED = "ticket.status_changed"
+    TICKET_ASSIGNED = "ticket.assigned"
+    TICKET_CLOSED = "ticket.closed"
+    TICKET_REOPENED = "ticket.reopened"
+    COMMENT_ADDED = "comment.added"
+    ATTACHMENT_ADDED = "attachment.added"
+
+
+class WebhookBase(BaseModel):
+    url: str
+    events: List[WebhookEventTypeEnum]
+    is_active: bool = True
+    max_retries: int = 3
+    retry_delay_seconds: int = 60
+
+
+class WebhookCreate(WebhookBase):
+    secret: Optional[str] = None  # Kullanıcı kendi secret'ını belirleyebilir
+
+
+class WebhookUpdate(BaseModel):
+    url: Optional[str] = None
+    events: Optional[List[WebhookEventTypeEnum]] = None
+    is_active: Optional[bool] = None
+    secret: Optional[str] = None
+    max_retries: Optional[int] = None
+    retry_delay_seconds: Optional[int] = None
+
+
+class WebhookResponse(WebhookBase):
+    id: int
+    api_client_id: int
+    last_triggered_at: Optional[datetime] = None
+    last_success_at: Optional[datetime] = None
+    last_failure_at: Optional[datetime] = None
+    failure_count: int = 0
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+class WebhookLogResponse(BaseModel):
+    id: int
+    webhook_id: int
+    event_type: str
+    payload: str
+    response_status: Optional[int] = None
+    response_body: Optional[str] = None
+    success: bool
+    error_message: Optional[str] = None
+    retry_count: int
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+# External API Ticket Schemas (Harici uygulamalar için basitleştirilmiş)
+class ExternalTicketCreate(BaseModel):
+    """Harici API'den talep oluşturma"""
+    title: str
+    description: str
+    priority: str = "medium"  # low, medium, high, urgent
+    department_id: Optional[int] = None  # Belirtilmezse varsayılan departman
+    external_ref: Optional[str] = None  # Harici sistemdeki referans numarası
+    requester_email: Optional[str] = None  # Talep sahibinin e-postası
+    requester_name: Optional[str] = None  # Talep sahibinin adı
+    is_private: bool = False
+    teos_id: Optional[str] = None
+    citizenship_no: Optional[str] = None
+    
+    @validator('title', 'description')
+    def not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Bu alan boş bırakılamaz')
+        return v
+
+
+class ExternalTicketUpdate(BaseModel):
+    """Harici API'den talep güncelleme"""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+    external_ref: Optional[str] = None
+
+
+class ExternalCommentCreate(BaseModel):
+    """Harici API'den yorum ekleme"""
+    content: str
+    
+    @validator('content')
+    def not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Yorum içeriği boş olamaz')
+        return v
+
+
+class ExternalTicketResponse(BaseModel):
+    """Harici API'ye dönen talep bilgisi"""
+    id: int
+    title: str
+    description: str
+    status: str
+    priority: str
+    source: str
+    external_ref: Optional[str] = None
+    department_id: int
+    department_name: Optional[str] = None
+    assignee_id: Optional[int] = None
+    assignee_name: Optional[str] = None
+    is_private: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    closed_at: Optional[datetime] = None
+    comments_count: int = 0
+    attachments_count: int = 0
+    
+    class Config:
+        orm_mode = True
+    
+    @classmethod
+    def from_ticket(cls, ticket, comments_count: int = 0, attachments_count: int = 0):
+        return cls(
+            id=ticket.id,
+            title=ticket.title,
+            description=ticket.description,
+            status=ticket.status,
+            priority=ticket.priority,
+            source=getattr(ticket, 'source', 'web') or 'web',
+            external_ref=getattr(ticket, 'external_ref', None),
+            department_id=ticket.department_id,
+            department_name=ticket.department.name if ticket.department else None,
+            assignee_id=ticket.assignee_id,
+            assignee_name=ticket.assignee.full_name if ticket.assignee else None,
+            is_private=ticket.is_private,
+            created_at=ticket.created_at,
+            updated_at=ticket.updated_at,
+            closed_at=getattr(ticket, 'closed_at', None),
+            comments_count=comments_count,
+            attachments_count=attachments_count
+        )
+
+
+class ExternalCommentResponse(BaseModel):
+    """Harici API'ye dönen yorum bilgisi"""
+    id: int
+    content: str
+    user_id: int
+    user_name: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        orm_mode = True
+
+
+class ExternalTicketListResponse(BaseModel):
+    """Harici API talep listesi yanıtı"""
+    tickets: List[ExternalTicketResponse]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+
+# Webhook Payload Schemas (Harici uygulamalara gönderilecek)
+class WebhookPayload(BaseModel):
+    """Webhook ile gönderilecek temel payload"""
+    event: str
+    timestamp: datetime
+    ticket_id: int
+    ticket: ExternalTicketResponse
+    changes: Optional[Dict[str, Any]] = None  # Değişiklik detayları
+    comment: Optional[ExternalCommentResponse] = None  # Yorum eklendiyse

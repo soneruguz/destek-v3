@@ -59,7 +59,6 @@ function App() {
                     <Route path="/departments" element={<DepartmentsPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/settings" element={<SystemSettingsPage />} />
-                    <Route path="/settings" element={<SystemSettingsPage />} />
                     <Route path="/login-logs" element={<LoginLogsPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                   </>

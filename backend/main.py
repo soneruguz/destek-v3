@@ -7,6 +7,7 @@ import models
 from database import get_db, engine
 from auth import router as auth_router
 from routers import tickets, notifications, users, departments, wikis, system_settings, login_logs, reports
+from routers import external_api, api_clients  # Harici API entegrasyonu
 
 # Logging
 logging.basicConfig(level=logging.DEBUG)
@@ -23,18 +24,83 @@ UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# CORS - Ortam değişkeninden okunur, yoksa localhost
+# CORS - Dinamik yapılandırma
 import os
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3005,https://destek.tesmer.org.tr,https://destekapi.tesmer.org.tr,https://devdestek.tesmer.org.tr,https://devdestekapi.tesmer.org.tr").split(",")
-cors_origins = [origin.strip() for origin in cors_origins]
+import re
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-)
+# Ortam değişkeninden ek origin'ler (virgülle ayrılmış)
+extra_origins = os.getenv("CORS_ORIGINS", "").split(",")
+extra_origins = [origin.strip() for origin in extra_origins if origin.strip()]
+
+# Temel izin verilen origin'ler
+base_origins = [
+    "http://localhost:3000",
+    "http://localhost:3005", 
+    "http://localhost:8000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3005",
+]
+
+# Tüm origin'leri birleştir
+cors_origins = list(set(base_origins + extra_origins))
+
+# Dinamik origin doğrulama fonksiyonu
+def is_allowed_origin(origin: str) -> bool:
+    """Origin'in izin verilen listede olup olmadığını kontrol et"""
+    if not origin:
+        return False
+    
+    # Statik listede var mı?
+    if origin in cors_origins:
+        return True
+    
+    # tesmer.org.tr subdomain'leri (https://*.tesmer.org.tr)
+    if re.match(r'^https://[\w\-]+\.tesmer\.org\.tr$', origin):
+        return True
+    
+    # Localhost varyasyonları
+    if re.match(r'^https?://(localhost|127\.0\.0\.1)(:\d+)?$', origin):
+        return True
+    
+    return False
+
+# Custom CORS middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        origin = request.headers.get("origin", "")
+        
+        # Preflight (OPTIONS) isteği
+        if request.method == "OPTIONS":
+            if is_allowed_origin(origin):
+                return Response(
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Max-Age": "86400",
+                    }
+                )
+            else:
+                return Response(status_code=403)
+        
+        # Normal istek
+        response = await call_next(request)
+        
+        if is_allowed_origin(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
+
+# Dinamik CORS middleware'i ekle
+app.add_middleware(DynamicCORSMiddleware)
 
 # Public notification endpoints - router'dan ÖNCE tanımlanmalı
 @app.get("/api/notifications/vapid-public-key")
@@ -52,6 +118,10 @@ app.include_router(system_settings.router, prefix="/api/settings")
 app.include_router(login_logs.router, prefix="/api/login-logs")
 app.include_router(notifications.router, prefix="/api/notifications")
 app.include_router(reports.router, prefix="/api/reports")
+
+# Harici API Entegrasyonu
+app.include_router(external_api.router, prefix="/api/external")  # Harici uygulamalar için
+app.include_router(api_clients.router, prefix="/api/admin/api-clients")  # API client yönetimi
 
 # Sadece temel endpoint'ler - ticket endpoint'leri routers/tickets.py'de
 

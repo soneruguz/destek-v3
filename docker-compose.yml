@@ -28,6 +28,7 @@ services:
     environment:
       - TZ=Europe/Istanbul
       - UPLOAD_DIR=/app/uploads
+      - CORS_ORIGINS=https://destek.tesmer.org.tr,https://destekapi.tesmer.org.tr,https://devdestek.tesmer.org.tr,https://devdestekapi.tesmer.org.tr,https://localhost
       - LDAP_HOST=tesmer.local
       - LDAP_PORT=389
       - LDAP_BASE_DN=OU=TesmerUser,DC=tesmer,DC=local

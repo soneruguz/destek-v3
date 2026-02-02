@@ -18,7 +18,8 @@ const Icons = {
   Cog: () => <span>⚙</span>,
   BookOpen: () => <span>📖</span>,
   Clock: () => <span>🕐</span>,
-  ChartPie: () => <span>📊</span>
+  ChartPie: () => <span>📊</span>,
+  Api: () => <span>🔌</span>
 };
 
 const DashboardLayout = () => {

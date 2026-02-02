@@ -70,6 +70,7 @@ class User(Base):
     is_ldap = Column(Boolean, default=False)
     role = Column(Enum(UserRole), default=UserRole.USER)  # Kullanıcı rolü
     department_id = Column(Integer, ForeignKey("departments.id"))  # Primary department
+    browser_notification_token = Column(String, nullable=True)  # Push notification token
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -136,6 +137,11 @@ class Ticket(Base):
     priority = Column(String)  # low, medium, high, urgent
     status = Column(String, default="open")  # open, in_progress, resolved, closed
     
+    # Talebin kaynağı
+    source = Column(String(20), default="web")  # web, api, email, mobile
+    external_ref = Column(String(100), nullable=True)  # Harici sistemdeki referans numarası
+    api_client_id = Column(Integer, ForeignKey("api_clients.id"), nullable=True)  # API'den açıldıysa
+    
     # Gelişmiş görünürlük sistemi
     visibility_level = Column(Enum(VisibilityLevel), default=VisibilityLevel.DEPARTMENT)
     
@@ -156,6 +162,7 @@ class Ticket(Base):
     creator = relationship("User", foreign_keys=[creator_id], back_populates="created_tickets")
     assignee = relationship("User", foreign_keys=[assignee_id], back_populates="assigned_tickets")
     department = relationship("Department", back_populates="tickets")
+    api_client = relationship("ApiClient", back_populates="tickets")
     
     @property
     def visibility_display(self):
@@ -265,10 +272,11 @@ class Notification(Base):
     is_read = Column(Boolean, default=False)
     related_id = Column(Integer, nullable=True) # İlgili ticket veya wiki ID'si
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+    email_sent = Column(Boolean, default=False) # Mail gönderildi mi?
+
     # Foreign Keys
     user_id = Column(Integer, ForeignKey("users.id"))
-    
+
     # Relationships
     user = relationship("User")
 
@@ -352,6 +360,8 @@ class GeneralConfig(Base):
     workflow_enabled = Column(Boolean, default=False)
     triage_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     triage_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    triage_enabled_at = Column(DateTime, nullable=True)   # Triaj aktif edildiği zaman
+    triage_disabled_at = Column(DateTime, nullable=True)  # Triaj devre dışı bırakıldığı zaman
     
     # Escalation Settings
     escalation_enabled = Column(Boolean, default=False)
@@ -377,3 +387,120 @@ class EmailConfig(Base):
     from_name = Column(String(100), default="Destek Sistemi")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ==================== API CLIENT & WEBHOOK MODELS ====================
+# Harici uygulamalar için API entegrasyonu
+
+class TicketSource(enum.Enum):
+    """Talebin kaynağını belirler"""
+    WEB = "web"              # Web arayüzünden açılan
+    API = "api"              # Harici API'den açılan
+    EMAIL = "email"          # E-posta ile açılan (gelecek için)
+    MOBILE = "mobile"        # Mobil uygulamadan (gelecek için)
+
+
+class ApiClient(Base):
+    """Harici uygulamalar için API istemci kaydı"""
+    __tablename__ = "api_clients"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)  # Uygulama adı (örn: "ERP Sistemi")
+    description = Column(Text, nullable=True)   # Açıklama
+    api_key = Column(String(64), unique=True, nullable=False, index=True)  # API anahtarı
+    api_secret = Column(String(128), nullable=False)  # API gizli anahtarı (hash'lenmiş)
+    is_active = Column(Boolean, default=True)   # Aktif mi?
+    
+    # İzinler
+    can_create_tickets = Column(Boolean, default=True)   # Talep açabilir mi?
+    can_read_tickets = Column(Boolean, default=True)     # Talep okuyabilir mi?
+    can_update_tickets = Column(Boolean, default=False)  # Talep güncelleyebilir mi?
+    can_add_comments = Column(Boolean, default=True)     # Yorum ekleyebilir mi?
+    
+    # Kısıtlamalar
+    allowed_departments = Column(Text, nullable=True)    # JSON: İzin verilen departman ID'leri, null=hepsi
+    rate_limit_per_minute = Column(Integer, default=60)  # Dakikada max istek
+    
+    # İlişkilendirme
+    default_department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    contact_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # İletişim sorumlusu
+    
+    # Zaman damgaları
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)  # Son kullanım zamanı
+    
+    # İlişkiler
+    default_department = relationship("Department", foreign_keys=[default_department_id])
+    contact_user = relationship("User", foreign_keys=[contact_user_id])
+    webhooks = relationship("Webhook", back_populates="api_client", cascade="all, delete-orphan")
+    tickets = relationship("Ticket", back_populates="api_client")
+
+
+class WebhookEventType(enum.Enum):
+    """Webhook olay tipleri"""
+    TICKET_CREATED = "ticket.created"
+    TICKET_UPDATED = "ticket.updated"
+    TICKET_STATUS_CHANGED = "ticket.status_changed"
+    TICKET_ASSIGNED = "ticket.assigned"
+    TICKET_CLOSED = "ticket.closed"
+    TICKET_REOPENED = "ticket.reopened"
+    COMMENT_ADDED = "comment.added"
+    ATTACHMENT_ADDED = "attachment.added"
+
+
+class Webhook(Base):
+    """Webhook yapılandırması - olayları harici uygulamalara bildirir"""
+    __tablename__ = "webhooks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    api_client_id = Column(Integer, ForeignKey("api_clients.id"), nullable=False)
+    
+    url = Column(String(500), nullable=False)      # Webhook URL'i
+    secret = Column(String(128), nullable=True)    # İmza doğrulama için gizli anahtar
+    
+    # Olaylar (JSON array olarak saklanır)
+    events = Column(Text, nullable=False)          # JSON: ["ticket.created", "ticket.updated", ...]
+    
+    is_active = Column(Boolean, default=True)
+    
+    # Retry politikası
+    max_retries = Column(Integer, default=3)
+    retry_delay_seconds = Column(Integer, default=60)
+    
+    # Durum takibi
+    last_triggered_at = Column(DateTime, nullable=True)
+    last_success_at = Column(DateTime, nullable=True)
+    last_failure_at = Column(DateTime, nullable=True)
+    failure_count = Column(Integer, default=0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # İlişkiler
+    api_client = relationship("ApiClient", back_populates="webhooks")
+    logs = relationship("WebhookLog", back_populates="webhook", cascade="all, delete-orphan")
+
+
+class WebhookLog(Base):
+    """Webhook gönderim logları"""
+    __tablename__ = "webhook_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    webhook_id = Column(Integer, ForeignKey("webhooks.id"), nullable=False)
+    
+    event_type = Column(String(50), nullable=False)
+    payload = Column(Text, nullable=False)         # JSON payload
+    
+    # Yanıt bilgileri
+    response_status = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    
+    success = Column(Boolean, default=False)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # İlişkiler
+    webhook = relationship("Webhook", back_populates="logs")

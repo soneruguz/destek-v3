@@ -44,7 +44,7 @@ const TicketDetail = () => {
           axiosInstance.get(`/tickets/${id}/comments/`),
           axiosInstance.get('/users/?active_only=true'),  // Sadece aktif kullanıcılar
           axiosInstance.get('/departments/'),
-          axiosInstance.get('/settings/').catch(() => ({ data: { general: { max_file_size_mb: 10 } } }))
+          axiosInstance.get('/settings/public/config').catch(() => ({ data: { general: { max_file_size_mb: 10 } } }))
         ]);
 
         setTicket(ticketRes.data);

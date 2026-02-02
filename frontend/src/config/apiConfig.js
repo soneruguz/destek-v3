@@ -4,7 +4,7 @@
 // Base API URL - HTTPS kullanılmalı (Mixed Content hatası önlemek için)
 // Uploads için: https://destekapi.tesmer.org.tr/uploads
 // API endpoints için: https://destekapi.tesmer.org.tr/api
-const API_URL = 'https://devdestekapi.tesmer.org.tr';
+const API_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://devdestekapi.tesmer.org.tr';
 
 // API routes - /api prefix'i ile
 const API_ROUTES = {

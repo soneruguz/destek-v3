@@ -108,6 +108,10 @@ def sync_ldap_users_with_departments():
                         db_user.is_ldap = True
                         update_needed = True
                     
+                    # ÖNEMLİ: Manuel olarak pasif yapılmış kullanıcıları aktif hale getirme
+                    # is_active durumunu LDAP senkronizasyonu güncellemez, manuel ayarlar korunur
+                    # Bu sayede admin tarafından pasif yapılan kullanıcılar AD'den çekilse bile pasif kalır
+                    
                     if update_needed:
                         try:
                             db.commit()
@@ -134,6 +138,9 @@ def sync_ldap_users_with_departments():
                             email = None  # E-postayı boş bırak
                     
                     try:
+                        # Yeni kullanıcılar varsayılan olarak aktif oluşturulur
+                        # Eğer pasif olması gerekiyorsa, oluşturulduktan sonra manuel olarak pasif yapılmalıdır
+                        # Bir kez pasif yapıldıktan sonra, LDAP senkronizasyonu bu durumu değiştirmez
                         new_user = models.User(
                             username=username,
                             email=email,

@@ -59,6 +59,11 @@ async def run_auto_escalation():
                     if elapsed > timedelta(minutes=timeout_mins):
                         logger.info(f"Ticket #{ticket.id} zaman aşımına uğradı ({elapsed}). Yeniden yönlendiriliyor...")
                         
+                        # Eğer son 10 dakika içinde escalation yapılmışsa tekrar yapma (loop önleme)
+                        if ticket.last_escalation_at and (datetime.utcnow() - ticket.last_escalation_at) < timedelta(minutes=10):
+                            logger.debug(f"Ticket #{ticket.id} çok yakın zamanda escalate edilmiş, tekrar yapılmıyor.")
+                            continue
+                        
                         # 3. Yeniden yönlendir
                         if config.escalation_target_user_id:
                             ticket.assignee_id = config.escalation_target_user_id

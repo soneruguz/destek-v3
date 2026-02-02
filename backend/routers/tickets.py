@@ -151,6 +151,9 @@ def create_ticket(
             assignee_id = department.manager_id
             logger.info(f"Talep birim yöneticisine atandı: {department.manager_id}")
 
+        import pytz
+        istanbul_tz = pytz.timezone('Europe/Istanbul')
+        now_istanbul = datetime.now(istanbul_tz).replace(tzinfo=None)
         new_ticket = models.Ticket(
             title=ticket.title,
             description=cleaned_description,
@@ -159,7 +162,8 @@ def create_ticket(
             creator_id=current_user.id,
             department_id=target_department_id,
             assignee_id=assignee_id,
-            is_private=ticket.is_private
+            is_private=ticket.is_private,
+            created_at=now_istanbul
         )
         
         db.add(new_ticket)
@@ -357,12 +361,25 @@ async def update_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Destek talebi bulunamadı")
 
+    # Önce triaj kontrolünü yapalım (diğer kontrollerde kullanacağız)
+    is_triage_person = False
+    from sqlalchemy.orm import joinedload
+    config = db.query(models.GeneralConfig).first()
+    
+    if config and config.workflow_enabled:
+        # Triaj personeli: ya triage_user_id ile eşleşen ya da triage_department_id'deki kullanıcı
+        if config.triage_user_id and current_user.id == config.triage_user_id:
+            is_triage_person = True
+        elif config.triage_department_id and current_user.department_id == config.triage_department_id:
+            is_triage_person = True
+    
     # Kapalı talepte sadece yöneticiler değişiklik yapabilir
     if ticket.status == "closed" and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Talep kapatıldı. Sadece yöneticiler değişiklik yapabilir.")
     
     # Açık talepte sadece durum değişikliği yapılabilir (işlemde durumuna almak için)
-    if ticket.status == "open":
+    # Ancak triaj personeli ve adminler bu kuralla kısıtlanmaz
+    if ticket.status == "open" and not current_user.is_admin and not is_triage_person:
         # Eğer sadece status değiştiriyorsa izin ver
         is_only_status_change = (
             ticket_update.status is not None and
@@ -379,6 +396,7 @@ async def update_ticket(
     logger.info(f"Ticket {ticket_id} güncellemesi - Kullanıcı: {current_user.username} (ID: {current_user.id})")
     logger.info(f"Ticket creator_id: {ticket.creator_id}, department_id: {ticket.department_id}")
     logger.info(f"Kullanıcı department_id: {current_user.department_id}, is_admin: {current_user.is_admin}")
+    logger.info(f"is_triage_person: {is_triage_person}")
     logger.info(f"Güncelleme verileri: {ticket_update.dict(exclude_unset=True)}")
 
     # Kapanan talebi tekrar açmak sadece admin yetkisinde
@@ -386,16 +404,19 @@ async def update_ticket(
         if not current_user.is_admin:
             raise HTTPException(status_code=403, detail="Kapanan talebi tekrar açma yetkiniz yok. Sadece admin açabilir.")
 
-    # Yetki kontrolü düzeltildi: Admin VEYA kendi oluşturduğu VEYA ticket'ın atandığı kişi VEYA aynı departmanda
+    # Yetki kontrolü: Admin, kendi oluşturduğu, atanan kişi, aynı departman veya triaj personeli
+    # config zaten yukarıda alınmıştı, tekrar almaya gerek yok
+    
     can_update = (
         current_user.is_admin or 
         ticket.creator_id == current_user.id or 
         ticket.assignee_id == current_user.id or
-        (current_user.department_id is not None and user_in_department(current_user, ticket.department_id))
+        (current_user.department_id is not None and user_in_department(current_user, ticket.department_id)) or
+        is_triage_person  # Triaj personeli tüm talepler üzerinde işlem yapabilir
     )
-    
-    logger.info(f"Güncelleme yetkisi: {can_update}")
-    
+
+    logger.info(f"Güncelleme yetkisi: {can_update}, is_triage_person: {is_triage_person}")
+
     if not can_update:
         raise HTTPException(status_code=403, detail="Bu destek talebini güncelleme yetkiniz yok")
 
@@ -445,6 +466,11 @@ async def update_ticket(
         else:
             ticket.assignee_id = ticket_update.assignee_id
 
+    # updated_at için de Istanbul timezone kullan
+    import pytz
+    istanbul_tz = pytz.timezone('Europe/Istanbul')
+    ticket.updated_at = datetime.now(istanbul_tz).replace(tzinfo=None)
+    
     db.commit()
     db.refresh(ticket)
 
@@ -473,9 +499,30 @@ async def update_ticket(
         joinedload(models.Ticket.assignee)
     ).filter(models.Ticket.id == ticket_id).first()
 
-    # NOT: Eski mail gönderme mantığı kaldırıldı (.notifications.py üzerinden yönetiliyor)
-    return schemas.Ticket.from_ticket(updated_ticket)
+    # Webhook tetikle (API'den açılmış taleplar için)
+    if updated_ticket.api_client_id:
+        from routers.external_api import trigger_ticket_webhook
+        
+        # Olay tipini belirle
+        webhook_event = "ticket.updated"
+        changes = {}
+        
+        if ticket_update.status is not None:
+            if ticket_update.status == "closed":
+                webhook_event = "ticket.closed"
+            elif ticket.status == "closed" and ticket_update.status != "closed":
+                webhook_event = "ticket.reopened"
+            else:
+                webhook_event = "ticket.status_changed"
+            changes["status"] = ticket_update.status
+        
+        if ticket_update.assignee_id is not None:
+            webhook_event = "ticket.assigned"
+            changes["assignee_id"] = ticket_update.assignee_id
+        
+        trigger_ticket_webhook(db, updated_ticket, webhook_event, changes)
 
+    # NOT: Eski mail gönderme mantığı kaldırıldı (.notifications.py üzerinden yönetiliyor)
     return schemas.Ticket.from_ticket(updated_ticket)
 
 @router.post("/share", status_code=status.HTTP_200_OK)
@@ -535,6 +582,17 @@ def add_comment(
     db.commit()
     db.refresh(new_comment)
 
+    # Webhook tetikle (API'den açılmış taleplar için)
+    from sqlalchemy.orm import joinedload
+    ticket = db.query(models.Ticket).options(
+        joinedload(models.Ticket.department),
+        joinedload(models.Ticket.assignee)
+    ).filter(models.Ticket.id == ticket_id).first()
+    
+    if ticket and ticket.api_client_id:
+        from routers.external_api import trigger_ticket_webhook
+        trigger_ticket_webhook(db, ticket, "comment.added", comment=new_comment)
+
     # Bildirim gönder
     from utils.notifications import notify_users_about_ticket
     background_tasks.add_task(
@@ -591,19 +649,23 @@ async def add_attachment(
 
     # Bildirim gönder
     from utils.notifications import notify_users_about_ticket
-    background_tasks.add_task(
-        notify_users_about_ticket,
-        None,
-        background_tasks,
-        ticket_id,
-        schemas.NotificationTypeEnum.TICKET_UPDATED,
-        f"Dosya Eklendi: {file.filename}",
-        f"{current_user.full_name} talebe yeni bir dosya ekledi.",
-        current_user.id,
-        'attachment', # Context ekledik!
-        None, # comment_id
-        new_attachment.id # attachment_id ekledik!
-    )
+    from datetime import datetime, timedelta
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    # Eğer ticket yeni oluşturulduysa (ör. 10 saniyeden kısa süre önce), dosya ekleme bildirimi gönderme
+    if ticket and (datetime.utcnow() - ticket.created_at) > timedelta(seconds=10):
+        background_tasks.add_task(
+            notify_users_about_ticket,
+            None,
+            background_tasks,
+            ticket_id,
+            schemas.NotificationTypeEnum.TICKET_UPDATED,
+            f"Dosya Eklendi: {file.filename}",
+            f"{current_user.full_name} talebe yeni bir dosya ekledi.",
+            current_user.id,
+            'attachment', # Context ekledik!
+            None, # comment_id
+            new_attachment.id # attachment_id ekledik!
+        )
 
 @router.post("/{ticket_id}/attachments/")
 def upload_ticket_attachment(

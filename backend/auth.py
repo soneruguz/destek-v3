@@ -314,10 +314,12 @@ def sync_ldap_users_func(db: Session):
                     if user.department_id != department_id:
                         user.department_id = department_id
                         update_needed = True
-                        
-                    if not user.is_active:
-                        user.is_active = True
-                        update_needed = True
+                    
+                    # ÖNEMLİ: Manuel olarak pasif yapılan kullanıcılar pasif kalmalı
+                    # LDAP senkronizasyonu is_active durumunu değiştirmez
+                    # if not user.is_active:
+                    #     user.is_active = True
+                    #     update_needed = True
                     
                     if update_needed:
                         try:
@@ -434,7 +436,9 @@ def login_for_access_token(
                     # Mevcut LDAP kullanıcısını güncelle
                     user.email = ldap_result.get('email', f"{user.username}@tesmer.org.tr")
                     user.full_name = ldap_result['full_name']
-                    user.is_active = True
+                    # ÖNEMLİ: Pasif kullanıcılar login yapamaz zaten (yukarıda kontrol var)
+                    # Bu yüzden is_active'i güncellemiyoruz
+                    # user.is_active = True
                     db.commit()
                     logger.info(f"LDAP kullanıcısı doğrulandı ve güncellendi: {user.username}")
                 
