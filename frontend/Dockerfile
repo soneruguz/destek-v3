@@ -24,15 +24,18 @@ COPY ./frontend .
 RUN npm run build
 
 # Production stage
-FROM node:16-alpine
+FROM nginx:alpine
 
-WORKDIR /app
+WORKDIR /usr/share/nginx/html
 
-# Install serve globally to serve static files
-RUN npm install -g serve
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom nginx config
+COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/
 
 # Copy built files from builder stage
-COPY --from=builder /app/build ./build
+COPY --from=builder /app/build .
 
 # Set timezone
 RUN apk add --no-cache tzdata && \
@@ -42,5 +45,5 @@ RUN apk add --no-cache tzdata && \
 # Expose port
 EXPOSE 3000
 
-# Serve the built application
-CMD ["serve", "-s", "build", "-l", "3000"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
