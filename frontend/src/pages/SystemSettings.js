@@ -722,7 +722,7 @@ const SystemSettings = () => {
                       <div className="mt-1 flex items-center">
                         {generalConfig.custom_logo_url && (
                           <span className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 mr-4">
-                            <img src={`${axiosInstance.defaults.baseURL.replace('/api', '')}/uploads${generalConfig.custom_logo_url}`} alt="Logo" className="h-full w-full object-contain" />
+                            <img src={`${window.location.origin}/uploads${generalConfig.custom_logo_url}`} alt="Logo" className="h-full w-full object-contain" />
                           </span>
                         )}
                         <input

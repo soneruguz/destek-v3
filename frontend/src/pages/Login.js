@@ -17,9 +17,8 @@ function Login() {
       try {
         const res = await axiosInstance.get('/config');
         if (res.data.custom_logo_url) {
-          // Base URL handling for image
-          const baseUrl = axiosInstance.defaults.baseURL.replace('/api', '');
-          setLogoUrl(`${baseUrl}/uploads${res.data.custom_logo_url}`);
+          // Use current origin for logo URL (same domain as frontend)
+          setLogoUrl(`${window.location.origin}/uploads${res.data.custom_logo_url}`);
         }
       } catch (err) {
         console.error('Config load error:', err);
