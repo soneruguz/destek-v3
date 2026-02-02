@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy.orm import Session
 import logging
 import models
@@ -18,9 +17,6 @@ app = FastAPI(
     title="Destek API",
     redirect_slashes=True  # Hem /users hem /users/ çalışsın
 )
-
-# Proxy headers middleware (Mixed Content önlemek için)
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Static files (uploads) - dinamik dizin desteği eklenecek
 import os
