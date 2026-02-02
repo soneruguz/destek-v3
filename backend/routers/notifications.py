@@ -5,6 +5,7 @@ import models
 from database import get_db
 from schemas import NotificationCreate, NotificationResponse, NotificationSettingsUpdate, NotificationSettingsResponse
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 # from utils.notifications import create_notification
 from auth import get_current_active_user
 
@@ -77,8 +78,15 @@ def get_notification_settings(
                 ticket_attachment=True
             )
             db.add(notification_settings)
-            db.commit()
-            db.refresh(notification_settings)
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                notification_settings = db.query(models.NotificationSettings).filter(
+                    models.NotificationSettings.user_id == current_user.id
+                ).first()
+            if notification_settings:
+                db.refresh(notification_settings)
         
         return NotificationSettingsResponse.from_orm(notification_settings)
         
@@ -192,6 +200,13 @@ def update_notification_settings(
                 ticket_attachment=settings.ticket_attachment
             )
             db.add(notification_settings)
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                notification_settings = db.query(models.NotificationSettings).filter(
+                    models.NotificationSettings.user_id == current_user.id
+                ).first()
         else:
             # Mevcut ayarları güncelle
             notification_settings.email_notifications = settings.email_notifications
@@ -201,8 +216,9 @@ def update_notification_settings(
             notification_settings.ticket_commented = settings.ticket_commented
             notification_settings.ticket_attachment = settings.ticket_attachment
         
-        db.commit()
-        db.refresh(notification_settings)
+        if notification_settings:
+            db.commit()
+            db.refresh(notification_settings)
         
         return NotificationSettingsResponse.from_orm(notification_settings)
         
