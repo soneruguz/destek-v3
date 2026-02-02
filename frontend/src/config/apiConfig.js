@@ -1,10 +1,10 @@
 // API configuration for the application
 // This file centralizes all API endpoint URLs to make it easier to manage
 
-// Base API URL - HTTPS kullanılmalı (Mixed Content hatası önlemek için)
-// Uploads için: https://destekapi.tesmer.org.tr/uploads
-// API endpoints için: https://destekapi.tesmer.org.tr/api
-const API_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://devdestekapi.tesmer.org.tr';
+// Base API URL - mevcut origin üzerinden ilerle (Mixed Content hatası önlemek için)
+// Uploads için: https://<host>/uploads
+// API endpoints için: https://<host>/api
+const API_URL = window.location.origin;
 
 // API routes - /api prefix'i ile
 const API_ROUTES = {
