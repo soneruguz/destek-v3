@@ -9,40 +9,40 @@ const API_URL = '';
 // API routes - axios baseURL '/api' olduğu için prefix yok
 const API_ROUTES = {
   // Auth related endpoints
-  LOGIN: `${API_URL}/auth/token`,
-  REFRESH_TOKEN: `${API_URL}/auth/token/refresh`,
+  LOGIN: `/auth/token/`,
+  REFRESH_TOKEN: `/auth/token/refresh/`,
 
   // User related endpoints
-  USERS: `${API_URL}/users`,
-  USER: (id) => `${API_URL}/users/${id}`,
-  USER_DEPARTMENTS: (id) => `${API_URL}/users/${id}/departments`,
+  USERS: `/users/`,
+  USER: (id) => `/users/${id}/`,
+  USER_DEPARTMENTS: (id) => `/users/${id}/departments/`,
 
   // Ticket related endpoints
-  TICKETS: `${API_URL}/tickets`,
-  TICKET: (id) => `${API_URL}/tickets/${id}`,
-  TICKET_COMMENTS: (id) => `${API_URL}/tickets/${id}/comments`,
+  TICKETS: `/tickets/`,
+  TICKET: (id) => `/tickets/${id}/`,
+  TICKET_COMMENTS: (id) => `/tickets/${id}/comments/`,
 
   // Department related endpoints
-  DEPARTMENTS: `${API_URL}/departments`,
-  DEPARTMENT: (id) => `${API_URL}/departments/${id}`,
+  DEPARTMENTS: `/departments/`,
+  DEPARTMENT: (id) => `/departments/${id}/`,
 
   // Wiki related endpoints
-  WIKIS: `${API_URL}/wikis`,
-  WIKI: (id) => `${API_URL}/wikis/${id}`,
+  WIKIS: `/wikis/`,
+  WIKI: (id) => `/wikis/${id}/`,
 
   // Notification related endpoints
-  NOTIFICATIONS: `${API_URL}/notifications`,
-  NOTIFICATION_SETTINGS: `${API_URL}/notifications/settings`,
-  MARK_NOTIFICATION_READ: (id) => `${API_URL}/notifications/${id}/read`,
+  NOTIFICATIONS: `/notifications/`,
+  NOTIFICATION_SETTINGS: `/notifications/settings/`,
+  MARK_NOTIFICATION_READ: (id) => `/notifications/${id}/read/`,
 
   // System settings
-  CONFIG: `${API_URL}/config`,
+  CONFIG: `/config/`,
 
   // Reports & Search
-  REPORTS_STATS: `${API_URL}/reports/stats`,
-  REPORTS_SEARCH: `${API_URL}/reports/search`,
-  REPORTS_EXPORT: `${API_URL}/reports/export`,
-  REPORTS_PERSONNEL: `${API_URL}/reports/personnel-stats`,
+  REPORTS_STATS: `/reports/stats/`,
+  REPORTS_SEARCH: `/reports/search/`,
+  REPORTS_EXPORT: `/reports/export/`,
+  REPORTS_PERSONNEL: `/reports/personnel-stats/`,
 };
 
 export { API_URL, API_ROUTES };
