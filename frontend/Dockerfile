@@ -14,6 +14,9 @@ COPY package*.json ./
 RUN npm install && \
     npm cache clean --force
 
+# Copy .env file for build-time environment variables
+COPY ../.env .env
+
 # Copy application code
 COPY . .
 
