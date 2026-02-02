@@ -8,17 +8,17 @@ RUN apk add --no-cache shadow tzdata && \
     echo "Europe/Istanbul" > /etc/timezone
 
 # Copy package files
-COPY package*.json ./
+COPY ./frontend/package*.json ./
 
 # Install dependencies
 RUN npm install && \
     npm cache clean --force
 
 # Copy .env file for build-time environment variables
-COPY ../.env .env
+COPY .env .env
 
 # Copy application code
-COPY . .
+COPY ./frontend .
 
 # Build the application for production
 RUN npm run build

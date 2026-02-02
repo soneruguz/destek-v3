@@ -42,7 +42,9 @@ services:
       - destek_network
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: ./frontend/Dockerfile
     container_name: destek-frontend-1
     ports:
       - "3005:3000"
