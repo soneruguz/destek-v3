@@ -46,9 +46,9 @@ const NewTicket = () => {
     const fetchInitialData = async () => {
       try {
         const [departmentsRes, usersRes, configRes] = await Promise.all([
-          axiosInstance.get('/departments/'),
-          axiosInstance.get('/users/?active_only=true'),  // Sadece aktif kullanıcılar
-          axiosInstance.get('/settings/public/config')  // Public endpoint - authentication gerektirmez
+          axiosInstance.get('departments/'),
+          axiosInstance.get('users/?active_only=true'),  // Sadece aktif kullanıcılar
+          axiosInstance.get('settings/public/config/')  // Public endpoint - authentication gerektirmez
         ]);
 
         setDepartments(departmentsRes.data);
@@ -192,7 +192,7 @@ const NewTicket = () => {
         shared_with_departments: (formData.shared_with_departments || []).map(dept => dept.value)
       };
 
-      const response = await axiosInstance.post('/tickets/', submitData);
+      const response = await axiosInstance.post('tickets/', submitData);
       const createdTicketId = response.data.id;
 
       if (tempFiles.length > 0) {
@@ -223,7 +223,7 @@ const NewTicket = () => {
 
             // Dosya yükleme hatası varsa talebi sil
             try {
-              await axiosInstance.delete(`/tickets/${createdTicketId}`);
+              await axiosInstance.delete(`tickets/${createdTicketId}/`);
               addToast('Dosya yükleme başarısız olduğu için talep silinmiştir', 'warning');
             } catch (deleteError) {
               console.error('Talep silinirken hata:', deleteError);

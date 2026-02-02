@@ -24,7 +24,7 @@ const WikiCreate = () => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await axiosInstance.get('/departments/');
+        const response = await axiosInstance.get('departments/');
         setDepartments(response.data);
       } catch (err) {
         console.error('Error fetching departments:', err);
@@ -71,7 +71,7 @@ const WikiCreate = () => {
         department_id: formData.department_id === '' ? null : parseInt(formData.department_id)
       };
 
-      await axiosInstance.post('/wikis/', submitData);
+      await axiosInstance.post('wikis/', submitData);
       
       addToast('Wiki başarıyla oluşturuldu!', 'success');
       navigate('/wikis');

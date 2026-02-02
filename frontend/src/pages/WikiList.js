@@ -17,11 +17,11 @@ const WikiList = () => {
     const fetchWikis = async () => {
       try {
         setLoading(true);
-        const response = await axiosInstance.get('/wikis/');
+        const response = await axiosInstance.get('wikis/');
         setWikis(response.data);
         
         // Departmanları da yükle
-        const departmentsResponse = await axiosInstance.get('/departments/');
+        const departmentsResponse = await axiosInstance.get('departments/');
         setDepartments(departmentsResponse.data);
       } catch (err) {
         console.error('Error fetching wikis:', err);

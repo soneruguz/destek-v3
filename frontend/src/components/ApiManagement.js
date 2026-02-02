@@ -56,7 +56,7 @@ const ApiManagement = () => {
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/admin/api-clients/');
+      const response = await axiosInstance.get('admin/api-clients/');
       setClients(response.data);
     } catch (error) {
       toast('API client listesi alınamadı', 'error');
@@ -67,7 +67,7 @@ const ApiManagement = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await axiosInstance.get('/departments/');
+      const response = await axiosInstance.get('departments/');
       setDepartments(response.data);
     } catch (error) {
       console.error('Departmanlar alınamadı:', error);
@@ -76,7 +76,7 @@ const ApiManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axiosInstance.get('/users/');
+      const response = await axiosInstance.get('users/');
       setUsers(response.data);
     } catch (error) {
       console.error('Kullanıcılar alınamadı:', error);
@@ -100,10 +100,10 @@ const ApiManagement = () => {
       };
 
       if (selectedClient) {
-        await axiosInstance.put(`/admin/api-clients/${selectedClient.id}`, payload);
+        await axiosInstance.put(`admin/api-clients/${selectedClient.id}/`, payload);
         toast('API Client güncellendi', 'success');
       } else {
-        const response = await axiosInstance.post('/admin/api-clients/', payload);
+        const response = await axiosInstance.post('admin/api-clients/', payload);
         setNewSecret(response.data.api_secret);
         setSelectedClient(response.data);
         setShowSecretModal(true);
@@ -119,7 +119,7 @@ const ApiManagement = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Bu API Client silinecek. Emin misiniz?')) return;
     try {
-      await axiosInstance.delete(`/admin/api-clients/${id}`);
+      await axiosInstance.delete(`admin/api-clients/${id}/`);
       toast('API Client silindi', 'success');
       fetchClients();
     } catch (error) {
@@ -130,7 +130,7 @@ const ApiManagement = () => {
   const handleRegenerateSecret = async (client) => {
     if (!window.confirm('Mevcut API Secret geçersiz olacak. Emin misiniz?')) return;
     try {
-      const response = await axiosInstance.post(`/admin/api-clients/${client.id}/regenerate-secret`);
+      const response = await axiosInstance.post(`admin/api-clients/${client.id}/regenerate-secret/`);
       setNewSecret(response.data.api_secret);
       setSelectedClient(client);
       setShowSecretModal(true);
@@ -142,7 +142,7 @@ const ApiManagement = () => {
 
   const handleToggleActive = async (client) => {
     try {
-      await axiosInstance.put(`/admin/api-clients/${client.id}`, { is_active: !client.is_active });
+      await axiosInstance.put(`admin/api-clients/${client.id}/`, { is_active: !client.is_active });
       toast(client.is_active ? 'API Client devre dışı bırakıldı' : 'API Client aktif edildi', 'success');
       fetchClients();
     } catch (error) {
@@ -193,7 +193,7 @@ const ApiManagement = () => {
   // Webhook işlemleri
   const fetchWebhooks = async (clientId) => {
     try {
-      const response = await axiosInstance.get(`/admin/api-clients/${clientId}/webhooks`);
+      const response = await axiosInstance.get(`admin/api-clients/${clientId}/webhooks/`);
       setWebhooks(response.data);
     } catch (error) {
       toast('Webhook listesi alınamadı', 'error');
@@ -217,7 +217,7 @@ const ApiManagement = () => {
   const handleWebhookSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axiosInstance.post(`/admin/api-clients/${selectedClient.id}/webhooks`, webhookForm);
+      await axiosInstance.post(`admin/api-clients/${selectedClient.id}/webhooks/`, webhookForm);
       toast('Webhook eklendi', 'success');
       fetchWebhooks(selectedClient.id);
       setWebhookForm({
@@ -237,7 +237,7 @@ const ApiManagement = () => {
   const handleDeleteWebhook = async (webhookId) => {
     if (!window.confirm('Bu webhook silinecek. Emin misiniz?')) return;
     try {
-      await axiosInstance.delete(`/admin/api-clients/${selectedClient.id}/webhooks/${webhookId}`);
+      await axiosInstance.delete(`admin/api-clients/${selectedClient.id}/webhooks/${webhookId}/`);
       toast('Webhook silindi', 'success');
       fetchWebhooks(selectedClient.id);
     } catch (error) {
@@ -247,7 +247,7 @@ const ApiManagement = () => {
 
   const handleTestWebhook = async (webhookId) => {
     try {
-      const response = await axiosInstance.post(`/admin/api-clients/${selectedClient.id}/webhooks/${webhookId}/test`);
+      const response = await axiosInstance.post(`admin/api-clients/${selectedClient.id}/webhooks/${webhookId}/test/`);
       if (response.data.success) {
         toast(`Test başarılı! Status: ${response.data.status_code}`, 'success');
       } else {
@@ -260,7 +260,7 @@ const ApiManagement = () => {
 
   const handleViewLogs = async (webhookId) => {
     try {
-      const response = await axiosInstance.get(`/admin/api-clients/${selectedClient.id}/webhooks/${webhookId}/logs`);
+      const response = await axiosInstance.get(`admin/api-clients/${selectedClient.id}/webhooks/${webhookId}/logs/`);
       setWebhookLogs(response.data);
       setShowLogsModal(true);
     } catch (error) {

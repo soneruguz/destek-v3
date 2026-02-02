@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../utils/axios';
+import { API_ROUTES } from '../config/apiConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -21,7 +22,7 @@ const Departments = () => {
   const fetchDepartments = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axiosInstance.get('/departments/');
+      const response = await axiosInstance.get(API_ROUTES.DEPARTMENTS);
       setDepartments(response.data);
     } catch (err) {
       console.error('Error fetching departments:', err);
@@ -52,10 +53,10 @@ const Departments = () => {
     
     try {
       if (isEditing) {
-        await axiosInstance.put(`/departments/${currentDeptId}`, formData);
+        await axiosInstance.put(API_ROUTES.DEPARTMENT(currentDeptId), formData);
         addToast('Departman başarıyla güncellendi.', 'success');
       } else {
-        await axiosInstance.post('/departments/', formData);
+        await axiosInstance.post(API_ROUTES.DEPARTMENTS, formData);
         addToast('Departman başarıyla oluşturuldu.', 'success');
       }
       
@@ -91,7 +92,7 @@ const Departments = () => {
     }
     
     try {
-      await axiosInstance.delete(`/departments/${id}`);
+      await axiosInstance.delete(API_ROUTES.DEPARTMENT(id));
       addToast('Departman başarıyla silindi.', 'success');
       fetchDepartments();
     } catch (err) {

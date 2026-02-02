@@ -29,8 +29,8 @@ const WikiDetail = () => {
   const fetchSharedEntities = useCallback(async () => {
     try {
       const [sharedUsersRes, sharedDeptsRes] = await Promise.all([
-        axiosInstance.get(`/wikis/${id}/shared_users`),
-        axiosInstance.get(`/wikis/${id}/shared_departments`)
+        axiosInstance.get(`wikis/${id}/shared_users/`),
+        axiosInstance.get(`wikis/${id}/shared_departments/`)
       ]);
 
       setSharedUsers(sharedUsersRes.data || []);
@@ -44,7 +44,7 @@ const WikiDetail = () => {
     const fetchWiki = async () => {
       try {
         setLoading(true);
-        const response = await axiosInstance.get(`/wikis/${id}`);
+        const response = await axiosInstance.get(`wikis/${id}/`);
         setWiki(response.data);
         if (response.data.revisions && response.data.revisions.length > 0) {
           setContent(response.data.revisions[0].content);
@@ -68,7 +68,7 @@ const WikiDetail = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await axiosInstance.get('/users/');
+      const response = await axiosInstance.get('users/');
       setUsers(response.data);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -81,7 +81,7 @@ const WikiDetail = () => {
   const fetchDepartments = useCallback(async () => {
     try {
       setLoadingDepartments(true);
-      const response = await axiosInstance.get('/departments/');
+      const response = await axiosInstance.get('departments/');
       setDepartments(response.data);
     } catch (err) {
       console.error('Error fetching departments:', err);
@@ -116,13 +116,13 @@ const WikiDetail = () => {
 
     try {
       setIsSubmitting(true);
-      await axiosInstance.post(`/wikis/${id}/revisions`, {
+      await axiosInstance.post(`wikis/${id}/revisions/`, {
         content
       });
       addToast('Revizyon başarıyla kaydedildi', 'success');
       setEditMode(false);
 
-      const response = await axiosInstance.get(`/wikis/${id}`);
+      const response = await axiosInstance.get(`wikis/${id}/`);
       setWiki(response.data);
     } catch (err) {
       console.error('Error saving revision:', err);
@@ -138,7 +138,7 @@ const WikiDetail = () => {
     }
 
     try {
-      await axiosInstance.delete(`/wikis/${id}`);
+      await axiosInstance.delete(`wikis/${id}/`);
       addToast('Wiki başarıyla silindi', 'success');
       navigate('/wikis');
     } catch (err) {
@@ -150,7 +150,7 @@ const WikiDetail = () => {
   const handleShare = async () => {
     try {
       setIsSubmitting(true);
-      await axiosInstance.post(`/wikis/${id}/share`, {
+      await axiosInstance.post(`wikis/${id}/share/`, {
         user_ids: selectedUsers,
         department_ids: selectedDepartments
       });

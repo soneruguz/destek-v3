@@ -18,7 +18,7 @@ const SimpleDashboard = () => {
     const fetchDashboardData = async () => {
       try {
         // Gerçek uygulamada, bir dashboard API endpoint'i olacaktır
-        const response = await axiosInstance.get('/tickets/');
+        const response = await axiosInstance.get('tickets/');
         const tickets = response.data;
 
         // İstatistikleri hesapla

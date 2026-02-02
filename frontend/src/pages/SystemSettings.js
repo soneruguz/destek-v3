@@ -73,7 +73,7 @@ const SystemSettings = () => {
     const fetchSettings = async () => {
       try {
         setLoading(true);
-        const response = await axiosInstance.get('/settings/');
+        const response = await axiosInstance.get('settings/');
         // Form verilerini ayarla
         setConfig({
           enable_teos_id: response.data.enable_teos_id || false,
@@ -138,8 +138,8 @@ const SystemSettings = () => {
     const fetchDepartmentsAndUsers = async () => {
       try {
         const [deptsRes, usersRes] = await Promise.all([
-          axiosInstance.get('/departments/'),
-          axiosInstance.get('/users/')
+          axiosInstance.get('departments/'),
+          axiosInstance.get('users/')
         ]);
         setDepartments(deptsRes.data || []);
         setUsers(usersRes.data || []);
@@ -187,7 +187,7 @@ const SystemSettings = () => {
     setSaving(true);
 
     try {
-      await axiosInstance.put('/settings/general-config', config);
+      await axiosInstance.put('settings/general-config/', config);
       addToast('Form ayarları başarıyla güncellendi', 'success');
     } catch (err) {
       console.error('Error updating system config:', err);
@@ -207,7 +207,7 @@ const SystemSettings = () => {
     );
 
     try {
-      await axiosInstance.put('/settings/email-config', payload);
+      await axiosInstance.put('settings/email-config/', payload);
       addToast('E-posta ayarları başarıyla güncellendi', 'success');
     } catch (err) {
       console.error('Error updating email config:', err);
@@ -222,7 +222,7 @@ const SystemSettings = () => {
     setGeneralSaving(true);
 
     try {
-      await axiosInstance.put('/settings/general-config', generalConfig);
+      await axiosInstance.put('settings/general-config/', generalConfig);
       addToast('Genel ayarlar başarıyla güncellendi', 'success');
     } catch (err) {
       console.error('Error updating general config:', err);

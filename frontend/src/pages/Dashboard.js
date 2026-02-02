@@ -53,7 +53,7 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const response = await axiosInstance.get('/tickets/');
+        const response = await axiosInstance.get('tickets/');
         // Artık backend tek bir liste döndürüyor, is_personal ile ayrım yapacağız
         const allTickets = response.data || [];
         const departmentTickets = allTickets.filter(t => !t.is_personal);

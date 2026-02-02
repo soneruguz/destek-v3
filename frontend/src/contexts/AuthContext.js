@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }) => {
       // Only sync if we have both token and isInitialized is true
       if (token && isInitialized === true && isAuthenticated === true) {
         try {
-          const response = await axiosInstance.get('/users/me', {
+          const response = await axiosInstance.get('users/me/', {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'

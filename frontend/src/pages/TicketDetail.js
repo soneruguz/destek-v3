@@ -40,11 +40,11 @@ const TicketDetail = () => {
       setLoading(true);
       try {
         const [ticketRes, commentsRes, usersRes, deptsRes, configRes] = await Promise.all([
-          axiosInstance.get(`/tickets/${id}`),
-          axiosInstance.get(`/tickets/${id}/comments/`),
-          axiosInstance.get('/users/?active_only=true'),  // Sadece aktif kullanıcılar
-          axiosInstance.get('/departments/'),
-          axiosInstance.get('/settings/public/config').catch(() => ({ data: { general: { max_file_size_mb: 10 } } }))
+          axiosInstance.get(`tickets/${id}/`),
+          axiosInstance.get(`tickets/${id}/comments/`),
+          axiosInstance.get('users/?active_only=true'),  // Sadece aktif kullanıcılar
+          axiosInstance.get('departments/'),
+          axiosInstance.get('settings/public/config/').catch(() => ({ data: { general: { max_file_size_mb: 10 } } }))
         ]);
 
         setTicket(ticketRes.data);
@@ -55,7 +55,7 @@ const TicketDetail = () => {
 
         // Dosya eklerini de getir
         try {
-          const attachmentsRes = await axiosInstance.get(`/tickets/${id}/attachments/`);
+          const attachmentsRes = await axiosInstance.get(`tickets/${id}/attachments/`);
           setAttachments(attachmentsRes.data || []);
         } catch (err) {
           setAttachments([]);
@@ -63,8 +63,8 @@ const TicketDetail = () => {
 
         try {
           const [sharedUsersRes, sharedDeptsRes] = await Promise.all([
-            axiosInstance.get(`/tickets/${id}/shared_users/`),
-            axiosInstance.get(`/tickets/${id}/shared_departments/`)
+            axiosInstance.get(`tickets/${id}/shared_users/`),
+            axiosInstance.get(`tickets/${id}/shared_departments/`)
           ]);
 
           setSharedUsers(sharedUsersRes.data || []);
@@ -88,7 +88,7 @@ const TicketDetail = () => {
 
   const handleStatusUpdate = async (newStatus) => {
     try {
-      const response = await axiosInstance.put(`/tickets/${id}`, { status: newStatus });
+      const response = await axiosInstance.put(`tickets/${id}/`, { status: newStatus });
       setTicket(response.data);
       addToast('Talep durumu başarıyla güncellendi', 'success');
     } catch (err) {
@@ -109,7 +109,7 @@ const TicketDetail = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await axiosInstance.post(`/tickets/${id}/comments/`, {
+      const response = await axiosInstance.post(`tickets/${id}/comments/`, {
         content: commentText
       });
 
@@ -133,7 +133,7 @@ const TicketDetail = () => {
     try {
       const assigneeId = userId === "" ? null : parseInt(userId);
 
-      const response = await axiosInstance.put(`/tickets/${id}`, {
+      const response = await axiosInstance.put(`tickets/${id}/`, {
         assignee_id: assigneeId
       });
 
@@ -149,7 +149,7 @@ const TicketDetail = () => {
     try {
       const departmentId = deptId === "" ? null : parseInt(deptId);
 
-      const response = await axiosInstance.put(`/tickets/${id}`, {
+      const response = await axiosInstance.put(`tickets/${id}/`, {
         department_id: departmentId
       });
 
@@ -163,11 +163,11 @@ const TicketDetail = () => {
 
   const handleShareSubmit = async () => {
     try {
-      await axiosInstance.post(`/tickets/${id}/share`, shareData);
+      await axiosInstance.post(`tickets/${id}/share/`, shareData);
 
       const [sharedUsersRes, sharedDeptsRes] = await Promise.all([
-        axiosInstance.get(`/tickets/${id}/shared_users`),
-        axiosInstance.get(`/tickets/${id}/shared_departments`)
+        axiosInstance.get(`tickets/${id}/shared_users/`),
+        axiosInstance.get(`tickets/${id}/shared_departments/`)
       ]);
 
       setSharedUsers(sharedUsersRes.data || []);
@@ -318,7 +318,7 @@ const TicketDetail = () => {
                                   addToast(`${file.name} başarıyla yüklendi`, 'success');
 
                                   // Dosya listesini yenile
-                                  const attachmentsRes = await axiosInstance.get(`/tickets/${id}/attachments/`);
+                                  const attachmentsRes = await axiosInstance.get(`tickets/${id}/attachments/`);
                                   setAttachments(attachmentsRes.data || []);
 
                                 } catch (error) {
@@ -616,7 +616,7 @@ const TicketDetail = () => {
                     <button
                       onClick={async () => {
                         try {
-                          const response = await axiosInstance.put(`/tickets/${id}`, {
+                          const response = await axiosInstance.put(`tickets/${id}/`, {
                             is_private: !ticket.is_private
                           });
                           setTicket(response.data);

@@ -13,7 +13,7 @@ const LoginLogs = () => {
     const fetchLoginLogs = async () => {
       try {
         setLoading(true);
-        const response = await axiosInstance.get('/login-logs/');
+        const response = await axiosInstance.get('login-logs/');
         setLogs(response.data);
       } catch (error) {
         console.error('Error fetching login logs:', error);

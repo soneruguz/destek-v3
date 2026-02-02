@@ -31,7 +31,7 @@ const Profile = () => {
       // Kullanıcı departmanlarını getir
       const fetchUserDepartments = async () => {
         try {
-          const response = await axiosInstance.get(`/users/${user.id}/departments`);
+          const response = await axiosInstance.get(`users/${user.id}/departments/`);
           setDepartments(response.data);
         } catch (err) {
           // 403 hatası normaldir - admin olmayan kullanıcılar kendi departmanlarını göremez
@@ -80,7 +80,7 @@ const Profile = () => {
         updateData.password = formData.password;
       }
       
-      await axiosInstance.put(`/users/${user.id}`, updateData);
+      await axiosInstance.put(`users/${user.id}/`, updateData);
       addToast('Profil bilgileriniz başarıyla güncellendi.', 'success');
       
       // Şifre alanlarını temizle

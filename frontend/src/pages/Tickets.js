@@ -23,7 +23,7 @@ const Tickets = () => {
 
       setLoading(true);
       try {
-        const response = await axiosInstance.get('/tickets/');
+        const response = await axiosInstance.get('tickets/');
         setTickets(response.data);
 
         // Atanan talepleri özel olarak vurgulayabilirsiniz

@@ -11,7 +11,7 @@ const TicketList = () => {
   useEffect(() => {
     const fetchTickets = async () => {
       try {
-        const response = await axiosInstance.get('/tickets/');
+        const response = await axiosInstance.get('tickets/');
         setTickets(response.data);
       } catch (err) {
         console.error('Error fetching tickets:', err);

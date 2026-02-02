@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../utils/axios';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ROUTES } from '../config/apiConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -38,8 +38,8 @@ const Users = () => {
       try {
         setLoading(true);
         const [usersRes, deptsRes] = await Promise.all([
-          axiosInstance.get(API_ENDPOINTS.users),
-          axiosInstance.get(API_ENDPOINTS.departments)
+          axiosInstance.get(API_ROUTES.USERS),
+          axiosInstance.get(API_ROUTES.DEPARTMENTS)
         ]);
         
         setUsers(usersRes.data);
@@ -92,10 +92,10 @@ const Users = () => {
           delete userData.password;
         }
         
-        await axiosInstance.put(`${API_ENDPOINTS.users}/${currentUserId}`, userData);
+        await axiosInstance.put(API_ROUTES.USER(currentUserId), userData);
         addToast('Kullanıcı başarıyla güncellendi.', 'success');
       } else {
-        await axiosInstance.post(API_ENDPOINTS.users, formData);
+        await axiosInstance.post(API_ROUTES.USERS, formData);
         addToast('Kullanıcı başarıyla oluşturuldu.', 'success');
       }
       
@@ -110,11 +110,11 @@ const Users = () => {
   const handleEdit = async (selectedUser) => {
     try {
       // Kullanıcının tam bilgilerini getir
-      const userResponse = await axiosInstance.get(`${API_ENDPOINTS.users}/${selectedUser.id}`);
+      const userResponse = await axiosInstance.get(API_ROUTES.USER(selectedUser.id));
       const fullUserData = userResponse.data;
       
       // Kullanıcının departmanlarını getir
-      const userDeptResponse = await axiosInstance.get(`${API_ENDPOINTS.users}/${selectedUser.id}/departments`);
+      const userDeptResponse = await axiosInstance.get(API_ROUTES.USER_DEPARTMENTS(selectedUser.id));
       const userDeptIds = userDeptResponse.data.map(dept => dept.id);
       
       setFormData({
@@ -153,7 +153,7 @@ const Users = () => {
   
   const fetchUsers = async () => {
     try {
-      const response = await axiosInstance.get(API_ENDPOINTS.users);
+      const response = await axiosInstance.get(API_ROUTES.USERS);
       setUsers(response.data);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -173,7 +173,7 @@ const Users = () => {
     }
     
     try {
-      await axiosInstance.delete(`${API_ENDPOINTS.users}/${id}`);
+      await axiosInstance.delete(API_ROUTES.USER(id));
       addToast('Kullanıcı başarıyla silindi.', 'success');
       fetchUsers();
     } catch (err) {
@@ -185,7 +185,7 @@ const Users = () => {
   const handleSyncLdap = async () => {
     setSyncingLdap(true);
     try {
-      const response = await axiosInstance.post('/users/sync-ldap');
+      const response = await axiosInstance.post('users/sync-ldap/');
       if (response.data.success) {
         addToast(`${response.data.synced_count} kullanıcı senkronize edildi`, 'success');
         fetchUsers(); // Kullanıcı listesini yenile

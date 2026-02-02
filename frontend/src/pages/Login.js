@@ -15,7 +15,7 @@ function Login() {
   React.useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const res = await axiosInstance.get('/config');
+        const res = await axiosInstance.get('config/');
         if (res.data.custom_logo_url) {
           // Use current origin for logo URL (same domain as frontend)
           setLogoUrl(`${window.location.origin}/uploads${res.data.custom_logo_url}`);
@@ -38,7 +38,7 @@ function Login() {
       params.append('username', credentials.username.trim());
       params.append('password', credentials.password);
 
-      const response = await axiosInstance.post('/auth/token', params, {
+      const response = await axiosInstance.post('auth/token/', params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
