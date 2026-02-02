@@ -1,48 +1,48 @@
 // API configuration for the application
 // This file centralizes all API endpoint URLs to make it easier to manage
 
-// Base API URL - mevcut origin üzerinden ilerle (Mixed Content hatası önlemek için)
-// Uploads için: https://<host>/uploads
-// API endpoints için: https://<host>/api
-const API_URL = window.location.origin;
+// Base API URL - relative kullan (Mixed Content hatası önlemek için)
+// Uploads için: /uploads
+// API endpoints için: /api
+const API_URL = '/api';
 
 // API routes - /api prefix'i ile
 const API_ROUTES = {
   // Auth related endpoints
-  LOGIN: `${API_URL}/api/auth/token`,
-  REFRESH_TOKEN: `${API_URL}/api/auth/token/refresh`,
+  LOGIN: `${API_URL}/auth/token`,
+  REFRESH_TOKEN: `${API_URL}/auth/token/refresh`,
 
   // User related endpoints
-  USERS: `${API_URL}/api/users`,
-  USER: (id) => `${API_URL}/api/users/${id}`,
-  USER_DEPARTMENTS: (id) => `${API_URL}/api/users/${id}/departments`,
+  USERS: `${API_URL}/users`,
+  USER: (id) => `${API_URL}/users/${id}`,
+  USER_DEPARTMENTS: (id) => `${API_URL}/users/${id}/departments`,
 
   // Ticket related endpoints
-  TICKETS: `${API_URL}/api/tickets`,
-  TICKET: (id) => `${API_URL}/api/tickets/${id}`,
-  TICKET_COMMENTS: (id) => `${API_URL}/api/tickets/${id}/comments`,
+  TICKETS: `${API_URL}/tickets`,
+  TICKET: (id) => `${API_URL}/tickets/${id}`,
+  TICKET_COMMENTS: (id) => `${API_URL}/tickets/${id}/comments`,
 
   // Department related endpoints
-  DEPARTMENTS: `${API_URL}/api/departments`,
-  DEPARTMENT: (id) => `${API_URL}/api/departments/${id}`,
+  DEPARTMENTS: `${API_URL}/departments`,
+  DEPARTMENT: (id) => `${API_URL}/departments/${id}`,
 
   // Wiki related endpoints
-  WIKIS: `${API_URL}/api/wikis`,
-  WIKI: (id) => `${API_URL}/api/wikis/${id}`,
+  WIKIS: `${API_URL}/wikis`,
+  WIKI: (id) => `${API_URL}/wikis/${id}`,
 
   // Notification related endpoints
-  NOTIFICATIONS: `${API_URL}/api/notifications`,
-  NOTIFICATION_SETTINGS: `${API_URL}/api/notifications/settings`,
-  MARK_NOTIFICATION_READ: (id) => `${API_URL}/api/notifications/${id}/read`,
+  NOTIFICATIONS: `${API_URL}/notifications`,
+  NOTIFICATION_SETTINGS: `${API_URL}/notifications/settings`,
+  MARK_NOTIFICATION_READ: (id) => `${API_URL}/notifications/${id}/read`,
 
   // System settings
-  CONFIG: `${API_URL}/api/config`,
+  CONFIG: `${API_URL}/config`,
 
   // Reports & Search
-  REPORTS_STATS: `${API_URL}/api/reports/stats`,
-  REPORTS_SEARCH: `${API_URL}/api/reports/search`,
-  REPORTS_EXPORT: `${API_URL}/api/reports/export`,
-  REPORTS_PERSONNEL: `${API_URL}/api/reports/personnel-stats`,
+  REPORTS_STATS: `${API_URL}/reports/stats`,
+  REPORTS_SEARCH: `${API_URL}/reports/search`,
+  REPORTS_EXPORT: `${API_URL}/reports/export`,
+  REPORTS_PERSONNEL: `${API_URL}/reports/personnel-stats`,
 };
 
 export { API_URL, API_ROUTES };
