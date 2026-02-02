@@ -1,15 +1,17 @@
 import axios from 'axios';
 
 // Backend ayrı domain'de (destekapi.tesmer.org.tr)
-// Zorla current origin + /api kullan (Mixed Content önleme)
-const API_BASE_URL = `${window.location.origin}/api`;
+// Zorla current origin + /api/ kullan (Mixed Content önleme)
+const API_BASE_URL = `${window.location.origin}/api/`;
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,  // 30s - dosya yüklemesi için yeterli
   headers: {
     'Content-Type': 'application/json',
-  }
+  },
+  // Relative path'lerin baseURL sonuna doğru eklenmesi için
+  withCredentials: true
 });
 
 // Request interceptor
