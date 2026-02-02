@@ -275,21 +275,7 @@ const ApiManagement = () => {
 
   // API Base URL - Önce env, yoksa hostname'e göre çıkar
   const getApiBaseUrl = () => {
-    if (process.env.REACT_APP_API_URL) {
-      return process.env.REACT_APP_API_URL;
-    }
-
-    const hostname = window.location.hostname;
-    if (hostname.includes('tesmer.org.tr')) {
-      // devdestek.tesmer.org.tr -> devdestekapi.tesmer.org.tr
-      // destek.tesmer.org.tr -> destekapi.tesmer.org.tr
-      if (hostname.startsWith('devdestek.')) {
-        return 'https://devdestekapi.tesmer.org.tr/api';
-      } else if (hostname.startsWith('destek.')) {
-        return 'https://destekapi.tesmer.org.tr/api';
-      }
-    }
-    return 'https://devdestekapi.tesmer.org.tr/api';
+    return `${window.location.origin}/api`;
   };
   
   const API_BASE_URL = getApiBaseUrl();
