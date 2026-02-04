@@ -647,12 +647,19 @@ async def add_attachment(
     db.commit()
     db.refresh(new_attachment)
 
-    # Bildirim gönder
+    # Bildirim gönder - SADECE talep ilk oluşturulurken eklenen dosyalar için bildirim gönderme
     from utils.notifications import notify_users_about_ticket
     from datetime import datetime, timedelta
+    import pytz
+    
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
-    # Eğer ticket yeni oluşturulduysa (ör. 10 saniyeden kısa süre önce), dosya ekleme bildirimi gönderme
-    if ticket and (datetime.utcnow() - ticket.created_at) > timedelta(seconds=10):
+    
+    # İstanbul timezone'u kullan (ticket.created_at Istanbul timezone'unda kaydediliyor)
+    istanbul_tz = pytz.timezone('Europe/Istanbul')
+    now_istanbul = datetime.now(istanbul_tz).replace(tzinfo=None)
+    
+    # Eğer ticket 30 saniyeden daha yeni oluşturulduysa, dosya ekleme bildirimi gönderme
+    if ticket and (now_istanbul - ticket.created_at) > timedelta(seconds=30):
         background_tasks.add_task(
             notify_users_about_ticket,
             None,
@@ -732,21 +739,31 @@ def upload_ticket_attachment(
         db.commit()
         db.refresh(attachment)
 
-        # Bildirim gönder
+        # Bildirim gönder - SADECE talep ilk oluşturulurken eklenen dosyalar için bildirim gönderme
+        # Eğer ticket 30 saniyeden daha yeni oluşturulmuşsa, dosya ekleme bildirimi gönderme
         from utils.notifications import notify_users_about_ticket
-        background_tasks.add_task(
-            notify_users_about_ticket,
-            None, # db yerine None geçiyoruz (arka planda yeni session açacak)
-            background_tasks,
-            ticket_id,
-            schemas.NotificationTypeEnum.TICKET_UPDATED,
-            f"Dosya Eklendi: {file.filename}",
-            f"{current_user.full_name} talebe yeni bir dosya ekledi.",
-            current_user.id,
-            'attachment',
-            None,
-            attachment.id
-        )
+        from datetime import timedelta
+        import pytz
+        
+        istanbul_tz = pytz.timezone('Europe/Istanbul')
+        now_istanbul = datetime.now(istanbul_tz).replace(tzinfo=None)
+        ticket_age = now_istanbul - ticket.created_at
+        
+        # Sadece talep 30 saniyeden daha eski ise bildirim gönder (ilk oluşturma sırasındaki dosya eklemeleri hariç)
+        if ticket_age > timedelta(seconds=30):
+            background_tasks.add_task(
+                notify_users_about_ticket,
+                None, # db yerine None geçiyoruz (arka planda yeni session açacak)
+                background_tasks,
+                ticket_id,
+                schemas.NotificationTypeEnum.TICKET_UPDATED,
+                f"Dosya Eklendi: {file.filename}",
+                f"{current_user.full_name} talebe yeni bir dosya ekledi.",
+                current_user.id,
+                'attachment',
+                None,
+                attachment.id
+            )
 
         
         # Preview URL'si oluştur (resim dosyaları için)
