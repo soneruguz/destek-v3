@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axiosInstance from '../config/api';
+import axiosInstance from '../utils/axios';
 
 const SystemLogs = () => {
   const [logs, setLogs] = useState([]);
@@ -8,6 +8,11 @@ const SystemLogs = () => {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  
+  // Auto-refresh için state
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(5); // saniye
+  const [lastRefresh, setLastRefresh] = useState(null);
   
   // Filtre state'leri
   const [category, setCategory] = useState('');
@@ -25,8 +30,8 @@ const SystemLogs = () => {
   const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [daysToKeep, setDaysToKeep] = useState(90);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (category) params.append('category', category);
@@ -42,10 +47,11 @@ const SystemLogs = () => {
       setLogs(response.data.logs);
       setTotal(response.data.total);
       setTotalPages(response.data.total_pages);
+      setLastRefresh(new Date());
     } catch (error) {
       console.error('Loglar yüklenirken hata:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [category, action, status, search, startDate, endDate, page, pageSize]);
 
@@ -70,6 +76,20 @@ const SystemLogs = () => {
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  // Auto-refresh interval
+  useEffect(() => {
+    let intervalId;
+    if (autoRefresh && refreshInterval > 0) {
+      intervalId = setInterval(() => {
+        fetchLogs(true); // silent refresh
+        fetchStats();
+      }, refreshInterval * 1000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [autoRefresh, refreshInterval, fetchLogs]);
 
   useEffect(() => {
     fetchStats();
@@ -294,7 +314,7 @@ const SystemLogs = () => {
         </div>
         
         <div className="flex justify-between items-center mt-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={() => {
                 setCategory('');
@@ -309,6 +329,39 @@ const SystemLogs = () => {
             >
               Filtreleri Temizle
             </button>
+            
+            {/* Auto-refresh kontrolü */}
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600">Anlık</span>
+              </label>
+              <select
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                disabled={!autoRefresh}
+                className="text-sm rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value={3}>3 sn</option>
+                <option value={5}>5 sn</option>
+                <option value={10}>10 sn</option>
+                <option value={30}>30 sn</option>
+                <option value={60}>1 dk</option>
+              </select>
+              {autoRefresh && (
+                <span className="text-xs text-green-600 animate-pulse">● Canlı</span>
+              )}
+              {lastRefresh && (
+                <span className="text-xs text-gray-400">
+                  Son: {lastRefresh.toLocaleTimeString('tr-TR')}
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="flex gap-2">
