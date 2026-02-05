@@ -71,18 +71,27 @@ async def create_notification(
         should_send_push = settings.browser_notifications
 
         type_enabled = True
+        email_rejected_reason = None
+        
         if notification_type == schemas.NotificationTypeEnum.TICKET_CREATED and not settings.ticket_created:
             type_enabled = False
+            email_rejected_reason = "ticket_created_disabled"
         elif notification_type == schemas.NotificationTypeEnum.TICKET_UPDATED and not settings.ticket_updated:
             type_enabled = False
+            email_rejected_reason = "ticket_updated_disabled"
         elif notification_type == schemas.NotificationTypeEnum.TICKET_ASSIGNED and not settings.ticket_assigned:
             type_enabled = False
+            email_rejected_reason = "ticket_assigned_disabled"
         elif notification_type == schemas.NotificationTypeEnum.TICKET_COMMENTED and not settings.ticket_commented:
             type_enabled = False
+            email_rejected_reason = "ticket_commented_disabled"
 
         if not type_enabled:
             should_send_email = False
             should_send_push = False
+        
+        if not settings.email_notifications:
+            email_rejected_reason = "email_notifications_disabled"
 
         # Daha önce aynı kullanıcı, tip ve ilgili id için mail gönderilmiş mi kontrol et
         # Ayrıca son 5 dakika içinde aynı bildirim gönderilmişse tekrar gönderme (loop önleme)
@@ -120,6 +129,27 @@ async def create_notification(
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user or not user.email:
             should_send_email = False
+            email_rejected_reason = "no_email_address"
+        
+        # Mail kabul etmeyen kullanıcıları logla
+        from utils.system_logger import log_mail, LogAction
+        
+        if email_rejected_reason and user:
+            log_mail(
+                db=db,
+                action=LogAction.REJECTED,
+                recipient_email=user.email if user.email else f"user_{user_id}",
+                subject=title,
+                user_id=user_id,
+                username=user.username if user else None,
+                success=False,
+                error_message=f"Kullanıcı mail bildirimi kabul etmiyor: {email_rejected_reason}",
+                details={
+                    "notification_type": str(notification_type),
+                    "reason": email_rejected_reason,
+                    "related_id": related_id
+                }
+            )
 
         # E-posta bildirimi gönder (Background Task'e ekle)
         if should_send_email:
@@ -235,10 +265,52 @@ def send_email_notification(
             server.quit()
             logger.info(f"E-posta başarıyla gönderildi: {recipient_email}")
             
+            # Başarılı mail logu
+            from utils.system_logger import log_mail, LogAction
+            log_mail(
+                db=db,
+                action=LogAction.SEND,
+                recipient_email=recipient_email,
+                subject=title,
+                success=True,
+                details={
+                    "notification_type": str(notification_type),
+                    "related_id": related_id
+                }
+            )
+            
         except smtplib.SMTPException as smtp_err:
             logger.error(f"SMTP Hatası ({recipient_email}): {str(smtp_err)}")
+            # Başarısız mail logu
+            from utils.system_logger import log_mail, LogAction
+            log_mail(
+                db=db,
+                action=LogAction.SEND_FAILED,
+                recipient_email=recipient_email,
+                subject=title,
+                success=False,
+                error_message=f"SMTP Hatası: {str(smtp_err)}",
+                details={
+                    "notification_type": str(notification_type),
+                    "related_id": related_id
+                }
+            )
         except Exception as conn_err:
             logger.error(f"E-posta bağlantı hatası ({recipient_email}): {str(conn_err)}")
+            # Başarısız mail logu
+            from utils.system_logger import log_mail, LogAction
+            log_mail(
+                db=db,
+                action=LogAction.SEND_FAILED,
+                recipient_email=recipient_email,
+                subject=title,
+                success=False,
+                error_message=f"Bağlantı hatası: {str(conn_err)}",
+                details={
+                    "notification_type": str(notification_type),
+                    "related_id": related_id
+                }
+            )
             
     except Exception as e:
         logger.error(f"E-posta gönderiminde genel hata: {str(e)}")

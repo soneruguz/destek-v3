@@ -504,3 +504,41 @@ class WebhookLog(Base):
     
     # İlişkiler
     webhook = relationship("Webhook", back_populates="logs")
+
+
+class SystemLog(Base):
+    """Merkezi sistem logları - tüm işlemleri takip eder"""
+    __tablename__ = "system_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Log kategorisi ve türü
+    category = Column(String(50), nullable=False, index=True)  # auth, ticket, mail, user, department, system, wiki
+    action = Column(String(50), nullable=False, index=True)    # login, logout, create, update, delete, send, fail
+    
+    # İşlemi yapan kullanıcı
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    username = Column(String(100), nullable=True)  # Kullanıcı silinse bile log kalır
+    
+    # İlgili kayıt
+    target_type = Column(String(50), nullable=True)  # ticket, user, department, wiki, mail
+    target_id = Column(Integer, nullable=True)
+    target_name = Column(String(255), nullable=True)  # Kayıt silinse bile log kalır
+    
+    # Detaylar
+    details = Column(Text, nullable=True)  # JSON formatında ek bilgiler
+    
+    # Durum
+    status = Column(String(20), default="success")  # success, failed, warning
+    error_message = Column(Text, nullable=True)
+    
+    # IP ve istemci bilgileri
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    
+    # Zaman
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # Relationships
+    user = relationship("User", backref="system_logs")
+

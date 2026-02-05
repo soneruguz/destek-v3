@@ -397,6 +397,8 @@ def login_for_access_token(
     db: Session = Depends(get_db)
 ):
     """Login endpoint - LDAP ve local kullanıcı desteği"""
+    from utils.system_logger import log_auth, LogAction
+    
     try:
         logger.info(f"Login attempt: {form_data.username}")
         
@@ -406,6 +408,9 @@ def login_for_access_token(
         # 2. Eğer kullanıcı aktif değilse hemen reddet
         if user and not user.is_active:
             logger.warning(f"Inactive user login attempt: {form_data.username}")
+            log_auth(db, LogAction.LOGIN_FAILED, user_id=user.id, username=form_data.username,
+                    success=False, error_message="Hesap aktif değil",
+                    details={"reason": "inactive_account"})
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Kullanıcı hesabı aktif değil. Lütfen sistem yöneticisi ile iletişime geçin."
@@ -442,6 +447,10 @@ def login_for_access_token(
                     db.commit()
                     logger.info(f"LDAP kullanıcısı doğrulandı ve güncellendi: {user.username}")
                 
+                # Başarılı login logu
+                log_auth(db, LogAction.LOGIN, user_id=user.id, username=user.username,
+                        success=True, details={"method": "ldap"})
+                
                 access_token = create_access_token(data={"sub": user.username})
                 return {
                     "access_token": access_token,
@@ -458,6 +467,9 @@ def login_for_access_token(
             elif user and user.is_ldap:
                 # LDAP kullanıcısı ama LDAP doğrulaması başarısız oldu
                 logger.warning(f"Strict LDAP login failed for user: {form_data.username}")
+                log_auth(db, LogAction.LOGIN_FAILED, user_id=user.id, username=form_data.username,
+                        success=False, error_message="LDAP doğrulama başarısız",
+                        details={"method": "ldap"})
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Kullanıcı adı veya şifre yanlış (LDAP)",
@@ -468,6 +480,9 @@ def login_for_access_token(
         if user and not user.is_ldap:
             if not verify_password(form_data.password, user.hashed_password):
                 logger.warning(f"Local login failed: Password mismatch for user {form_data.username}")
+                log_auth(db, LogAction.LOGIN_FAILED, user_id=user.id, username=form_data.username,
+                        success=False, error_message="Şifre yanlış",
+                        details={"method": "local"})
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Kullanıcı adı veya şifre yanlış",
@@ -475,6 +490,9 @@ def login_for_access_token(
                 )
             
             logger.info(f"Local login successful: {user.username}")
+            log_auth(db, LogAction.LOGIN, user_id=user.id, username=user.username,
+                    success=True, details={"method": "local"})
+            
             access_token = create_access_token(data={"sub": user.username})
             return {
                 "access_token": access_token,
@@ -490,6 +508,9 @@ def login_for_access_token(
             }
         
         # Hiçbir koşul sağlanmadıysa (User yok ve LDAP başarısız ya da LDAP kapalı)
+        log_auth(db, LogAction.LOGIN_FAILED, username=form_data.username,
+                success=False, error_message="Kullanıcı bulunamadı",
+                details={"reason": "user_not_found"})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Kullanıcı bulunamadı veya bilgiler yanlış",
@@ -500,6 +521,9 @@ def login_for_access_token(
         raise
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
+        log_auth(db, LogAction.LOGIN_FAILED, username=form_data.username,
+                success=False, error_message=str(e),
+                details={"reason": "system_error"})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Giriş yapılamadı",

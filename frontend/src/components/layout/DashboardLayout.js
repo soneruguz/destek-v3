@@ -40,7 +40,7 @@ const DashboardLayout = () => {
     { name: 'Kullanıcılar', icon: Icons.UserGroup, href: '/users' },
     { name: 'Raporlar ve Arama', icon: Icons.ChartPie, href: '/reports' },
     { name: 'Sistem Ayarları', icon: Icons.Cog, href: '/settings' },
-    { name: 'Giriş Kayıtları', icon: Icons.Clock, href: '/login-logs' }
+    { name: 'Sistem Logları', icon: Icons.Clock, href: '/system-logs' }
   ];
 
   const handleLogout = () => {

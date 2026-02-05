@@ -6,7 +6,7 @@ import logging
 import models
 from database import get_db, engine
 from auth import router as auth_router
-from routers import tickets, notifications, users, departments, wikis, system_settings, login_logs, reports
+from routers import tickets, notifications, users, departments, wikis, system_settings, login_logs, reports, system_logs
 from routers import external_api, api_clients  # Harici API entegrasyonu
 
 # Logging
@@ -118,6 +118,7 @@ app.include_router(system_settings.router, prefix="/api/settings")
 app.include_router(login_logs.router, prefix="/api/login-logs")
 app.include_router(notifications.router, prefix="/api/notifications")
 app.include_router(reports.router, prefix="/api/reports")
+app.include_router(system_logs.router, prefix="/api/system-logs")
 
 # Harici API Entegrasyonu
 app.include_router(external_api.router, prefix="/api/external")  # Harici uygulamalar için

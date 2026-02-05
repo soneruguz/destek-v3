@@ -171,6 +171,23 @@ def create_ticket(
         db.refresh(new_ticket)
         logger.info(f"Ticket başarıyla oluşturuldu: {new_ticket.id}")
         
+        # Sistem logu
+        from utils.system_logger import log_ticket, LogAction
+        log_ticket(
+            db=db,
+            action=LogAction.CREATE,
+            ticket_id=new_ticket.id,
+            ticket_title=new_ticket.title,
+            user_id=current_user.id,
+            username=current_user.username,
+            details={
+                "department_id": target_department_id,
+                "assignee_id": assignee_id,
+                "priority": ticket.priority,
+                "is_private": ticket.is_private
+            }
+        )
+        
         # Relationship'leri yükle
         from sqlalchemy.orm import joinedload
         created_ticket = db.query(models.Ticket).options(
@@ -473,6 +490,25 @@ async def update_ticket(
     
     db.commit()
     db.refresh(ticket)
+    
+    # Sistem logu - ticket güncelleme
+    from utils.system_logger import log_ticket, LogAction
+    log_ticket(
+        db=db,
+        action=LogAction.UPDATE,
+        ticket_id=ticket.id,
+        ticket_title=ticket.title,
+        user_id=current_user.id,
+        username=current_user.username,
+        details={
+            "changes": {
+                "status": ticket_update.status,
+                "priority": ticket_update.priority,
+                "department_id": ticket_update.department_id,
+                "assignee_id": ticket_update.assignee_id
+            }
+        }
+    )
 
     # Bildirim gönder
     from utils.notifications import notify_users_about_ticket
@@ -581,6 +617,22 @@ def add_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+    
+    # Sistem logu - yorum ekleme
+    ticket_for_log = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    from utils.system_logger import log_ticket, LogAction
+    log_ticket(
+        db=db,
+        action="comment",
+        ticket_id=ticket_id,
+        ticket_title=ticket_for_log.title if ticket_for_log else f"Ticket #{ticket_id}",
+        user_id=current_user.id,
+        username=current_user.username,
+        details={
+            "comment_id": new_comment.id,
+            "comment_preview": new_comment.content[:100] if new_comment.content else ""
+        }
+    )
 
     # Webhook tetikle (API'den açılmış taleplar için)
     from sqlalchemy.orm import joinedload

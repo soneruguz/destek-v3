@@ -24,8 +24,8 @@ import NotFoundPage from './pages/NotFound';
 import WikiListPage from './pages/WikiList';
 import WikiDetailPage from './pages/WikiDetail';
 import WikiCreatePage from './pages/WikiCreate';
-// Login logs sayfası
-import LoginLogsPage from './pages/LoginLogs';
+// Sistem logları sayfası
+import SystemLogsPage from './pages/SystemLogs';
 import ReportsPage from './pages/Reports';
 import NotificationsPage from './pages/Notifications';
 
@@ -59,7 +59,7 @@ function App() {
                     <Route path="/departments" element={<DepartmentsPage />} />
                     <Route path="/users" element={<UsersPage />} />
                     <Route path="/settings" element={<SystemSettingsPage />} />
-                    <Route path="/login-logs" element={<LoginLogsPage />} />
+                    <Route path="/system-logs" element={<SystemLogsPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                   </>
                 )}
