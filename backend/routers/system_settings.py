@@ -864,19 +864,6 @@ async def upload_logo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save logo file"
         )
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can view system settings"
-        )
-    
-    config = db.query(models.EmailConfig).first()
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Email configuration not found"
-        )
-    return config
 
 @router.put("/email-config", response_model=schemas.EmailConfigResponse)
 def update_email_config(
@@ -1164,7 +1151,8 @@ def get_public_settings(db: Session = Depends(get_db)):
             "allowed_file_types": general_config.allowed_file_types,
             "email_notifications_enabled": general_config.email_notifications_enabled,
             "ldap_enabled": general_config.ldap_enabled,
-            "default_department_id": general_config.default_department_id
+            "default_department_id": general_config.default_department_id,
+            "custom_logo_url": general_config.custom_logo_url
         }
     }
 
