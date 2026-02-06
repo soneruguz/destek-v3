@@ -158,7 +158,10 @@ const SimpleDashboard = () => {
         <div className="border-t border-gray-200 divide-y divide-gray-200">
           {recentTickets.length > 0 ? (
             recentTickets.map((ticket) => (
-              <div key={ticket.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+              <div
+                key={ticket.id}
+                className={`px-4 py-4 sm:px-6 ${ticket.status === 'closed' ? 'bg-slate-50 hover:bg-slate-100' : 'hover:bg-gray-50'}`}
+              >
                 <div className="flex items-center justify-between">
                   <Link
                     to={`/tickets/${ticket.id}`}

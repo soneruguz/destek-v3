@@ -76,8 +76,24 @@ const FileList = ({ files, onFileDelete, ticketId }) => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const handleDownload = (file) => {
-    window.open(`${API_BASE_URL}/attachments/${file.id}`, '_blank');
+  const handleDownload = async (file) => {
+    try {
+      const downloadPath = file.download_url
+        ? file.download_url.replace(/^\/api\//, '')
+        : `attachments/${file.id}`;
+      const response = await axiosInstance.get(downloadPath, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', file.filename || `attachment_${file.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Dosya indirilirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   };
 
   const handleDelete = async (fileId) => {

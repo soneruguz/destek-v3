@@ -92,7 +92,7 @@ const TicketList = () => {
             </thead>
             <tbody>
               {filteredTickets.map(ticket => (
-                <tr key={ticket.id}>
+                <tr className={ticket.status === 'closed' ? 'bg-emerald-50' : ''} key={ticket.id}>
                   <td>#{ticket.id}</td>
                   <td>{ticket.title}</td>
                   <td>

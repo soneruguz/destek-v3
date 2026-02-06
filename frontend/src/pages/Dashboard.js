@@ -267,7 +267,10 @@ const DashboardPage = () => {
         <div className="border-t border-gray-200 divide-y divide-gray-200">
           {displayedTickets.length > 0 ? (
             displayedTickets.map((ticket) => (
-              <div key={ticket.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+              <div
+                key={ticket.id}
+                className={`px-4 py-4 sm:px-6 ${ticket.status === 'closed' ? 'bg-emerald-50 hover:bg-emerald-100 border-l-4 border-emerald-400' : 'hover:bg-gray-50'}`}
+              >
                 <div className="flex items-center justify-between">
                   <Link
                     to={`/tickets/${ticket.id}`}
@@ -360,7 +363,10 @@ const DashboardPage = () => {
           <div className="border-t border-gray-200 divide-y divide-gray-200">
             {allPersonalTickets.length > 0 ? (
               allPersonalTickets.map((ticket) => (
-                <div key={ticket.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
+                <div
+                  key={ticket.id}
+                  className={`px-4 py-4 sm:px-6 ${ticket.status === 'closed' ? 'bg-emerald-50 hover:bg-emerald-100 border-l-4 border-emerald-400' : 'hover:bg-gray-50'}`}
+                >
                   <div className="flex items-center justify-between">
                     <Link
                       to={`/tickets/${ticket.id}`}

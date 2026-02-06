@@ -181,6 +181,36 @@ const TicketDetail = () => {
     }
   };
 
+  const handleAttachmentDownload = async (file) => {
+    try {
+      const token = localStorage.getItem('token');
+      const downloadPath = file.download_url?.replace(/^\/api\//, '') || `tickets/${id}/attachments/${file.id}/download`;
+      const separator = downloadPath.includes('?') ? '&' : '?';
+      const response = await axiosInstance.get(`${downloadPath}${separator}token=${encodeURIComponent(token)}`, { responseType: 'blob' });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', file.filename || `ticket_${id}_attachment`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Dosya indirme hatası:', err);
+      let msg = 'Dosya indirilirken bir hata oluştu';
+      try {
+        if (err.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.detail) msg = json.detail;
+        } else if (err.response?.data?.detail) {
+          msg = err.response.data.detail;
+        }
+      } catch (parseErr) { /* JSON parse hatası - varsayılan mesaj kullanılacak */ }
+      addToast(msg, 'error');
+    }
+  };
+
   // Bu fonksiyonları tamamen kaldır - artık kullanılmıyor
   // const handleFileUploaded = (fileData) => {
   //   // Bu fonksiyon artık kullanılmıyor
@@ -344,8 +374,8 @@ const TicketDetail = () => {
               {/* Basit dosya listesi */}
               <div className="space-y-3">
                 {attachments.length > 0 ?
-                  attachments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-primary-400 transition-colors">
+                  attachments.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-primary-400 transition-colors">
                       <div className="flex items-center space-x-4 flex-1">
                         {/* ÖN İZLEME ALANI */}
                         {file.preview_url ? (
@@ -384,7 +414,7 @@ const TicketDetail = () => {
                       </div>
                       <div className="flex items-center space-x-3">
                         <button
-                          onClick={() => window.open(`${API_URL}${file.download_url}`, '_blank')}
+                          onClick={() => handleAttachmentDownload(file)}
                           className="text-sm text-primary-600 hover:text-primary-800"
                         >
                           İndir

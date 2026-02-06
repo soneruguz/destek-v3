@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -210,6 +210,43 @@ async def get_current_active_user(current_user: UserInDB = Depends(get_current_u
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+# Download endpointleri için opsiyonel OAuth2 (header veya query param token)
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+async def get_current_user_for_download(
+    header_token: Optional[str] = Depends(oauth2_scheme_optional),
+    query_token: Optional[str] = Query(None, alias="token"),
+    db: Session = Depends(get_db)
+):
+    """Download endpointleri için auth - header veya query param token destekler"""
+    auth_token = header_token or query_token
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    user = get_user(db, username=username)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    return user
 
 def sync_ldap_users_func(db: Session):
     """LDAP'tan kullanıcıları çek ve departman bilgilerini düzelt - ŞIFRE SAKLAMA"""

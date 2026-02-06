@@ -55,10 +55,18 @@ def create_user(
     
     # Departmanlara ekle
     if user.department_ids:
+        valid_departments = []
         for dept_id in user.department_ids:
             department = db.query(models.Department).filter(models.Department.id == dept_id).first()
             if department:
-                new_user.departments.append(department)
+                valid_departments.append(department)
+
+        for department in valid_departments:
+            new_user.departments.append(department)
+
+        # Primary department: doğrulanmış ilk departmanı kullan
+        if valid_departments:
+            new_user.department_id = valid_departments[0].id
         
         db.commit()
         db.refresh(new_user)

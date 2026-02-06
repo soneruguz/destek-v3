@@ -14,7 +14,7 @@ import logging
 
 from database import get_db
 import models, schemas
-from auth import get_current_active_user
+from auth import get_current_active_user, get_current_user_for_download
 
 logger = logging.getLogger("uvicorn")
 
@@ -56,9 +56,30 @@ def clean_html_content(html_content: str) -> str:
     
     return text_content
 
+# Kullanıcının erişebileceği birim ID'lerini döndürür
+def get_user_department_ids(user: models.User) -> set:
+    department_ids = set()
+
+    if user.department_id is not None:
+        department_ids.add(user.department_id)
+
+    # Many-to-many ilişki ile bağlı birimler
+    for department in getattr(user, "departments", []) or []:
+        if department and department.id is not None:
+            department_ids.add(department.id)
+
+    # Yönetilen birimler (manager_id)
+    for department in getattr(user, "managed_departments", []) or []:
+        if department and department.id is not None:
+            department_ids.add(department.id)
+
+    return department_ids
+
 # Kullanıcının bir departmana ait olup olmadığını kontrol eden yardımcı fonksiyon
 def user_in_department(user: models.User, department_id: int):
-    return user.department_id == department_id
+    if department_id is None:
+        return False
+    return department_id in get_user_department_ids(user)
 
 # Kullanıcının bir destek talebine erişim yetkisi olup olmadığını kontrol eden fonksiyon
 def can_access_ticket(db: Session, user: models.User, ticket_id: int):
@@ -84,21 +105,23 @@ def can_access_ticket(db: Session, user: models.User, ticket_id: int):
     if ticket.is_private:
         return False
     
-    # ÖNEMLİ: KİŞİSEL TALEP KONTROLÜ - DİREKT RED!
-    # Eğer talep kişisel (assignee_id dolu) ise, SADECE ilgili kişiler görebilir
-    # Aynı departmandaki diğer kişiler asla göremez!
-    if ticket.assignee_id is not None:
-        return False
-    
     # DEPARTMAN YÖNETİCİSİ: Kendi departmanındaki TÜM taleplerine (kişisel dahil) erişebilir
     # Ancak private taleplerden hariç (private taleplere sadece admin, yaratıcı, atanan erişebilir)
     if ticket.department and ticket.department.manager_id == user.id:
         return True
     
-    # GENEL DEPARTMAN TALEPLERİ:
-    # Yalnızca genel (non-private, non-personal) talepler departman üyeleri tarafından görülebilir
-    if user.department_id is not None and user.department_id == ticket.department_id:
+    # Departmana ait talepler: private değilse, birim üyeleri erişebilir
+    if user_in_department(user, ticket.department_id):
         return True
+    
+    # Talebi açan kişinin birimindeki kullanıcılar da erişebilir
+    # (meslektaşın açtığı talepleri görebilme)
+    creator = db.query(models.User).filter(models.User.id == ticket.creator_id).first()
+    if creator:
+        user_depts = get_user_department_ids(user)
+        creator_depts = get_user_department_ids(creator)
+        if user_depts & creator_depts:  # Ortak birim varsa
+            return True
     
     return False
 
@@ -283,16 +306,16 @@ def get_tickets(
     accessible_tickets.extend(assigned_tickets)
     logger.info(f"Atandığı talepler: {len(assigned_tickets)}")
 
-    # 3. SADECE Departman genel taleplerine erişim (private değil, personal değil, paylaşım yok)
-    if current_user.department_id:
-        logger.info(f"DEBUG - Kullanıcı departmanı: {current_user.department_id}")
+    # 3. Departman talepleri (private olmayan tüm talepler)
+    user_department_ids = get_user_department_ids(current_user)
+    if user_department_ids:
+        logger.info(f"DEBUG - Kullanıcı departmanları: {sorted(user_department_ids)}")
         dept_query = db.query(models.Ticket).options(
             joinedload(models.Ticket.department),
             joinedload(models.Ticket.assignee)
         ).filter(
-            models.Ticket.department_id == current_user.department_id,
+            models.Ticket.department_id.in_(user_department_ids),
             models.Ticket.is_private == False,  # Gizli değil
-            models.Ticket.assignee_id == None,   # Kişiye atanmamış (genel departman talebi)
             models.Ticket.creator_id != current_user.id  # Kendi oluşturduğu değil (çakışma önleme)
         )
         if status:
@@ -306,18 +329,45 @@ def get_tickets(
             if ticket.is_private:
                 logger.info(f"  REDDEDILDI - Private ticket: {ticket.id}")
                 continue
-            # Personal ticket'ları kesinlikle reddet  
-            if ticket.assignee_id is not None:
-                logger.info(f"  REDDEDILDI - Personal ticket: {ticket.id}")
-                continue
-            # Sadece genel departman ticket'larını kabul et
+            # Departman ticket'larını kabul et
             filtered_dept_tickets.append(ticket)
-            logger.info(f"  KABUL - Genel departman ticket: {ticket.id}, Title: {ticket.title}")
+            logger.info(f"  KABUL - Departman ticket: {ticket.id}, Title: {ticket.title}")
         
         accessible_tickets.extend(filtered_dept_tickets)
-        logger.info(f"Departman genel talepleri: {len(filtered_dept_tickets)}")
+        logger.info(f"Departman talepleri: {len(filtered_dept_tickets)}")
     else:
         logger.info("Kullanıcının departmanı yok")
+
+    # 4. Kullanıcının birimindeki meslektaşların açtığı talepler
+    #    (kullanıcının birimi dışındaki birimlere açılmış olsa bile görülebilir)
+    if user_department_ids:
+        colleague_ids_query = db.query(models.User.id).filter(
+            or_(
+                models.User.department_id.in_(user_department_ids),
+                models.User.id.in_(
+                    db.query(models.user_department_association.c.user_id).filter(
+                        models.user_department_association.c.department_id.in_(user_department_ids)
+                    )
+                )
+            ),
+            models.User.id != current_user.id
+        )
+        colleague_ids = [uid for (uid,) in colleague_ids_query.all()]
+        
+        if colleague_ids:
+            colleague_query = db.query(models.Ticket).options(
+                joinedload(models.Ticket.department),
+                joinedload(models.Ticket.assignee)
+            ).filter(
+                models.Ticket.creator_id.in_(colleague_ids),
+                models.Ticket.is_private == False,
+                ~models.Ticket.department_id.in_(user_department_ids)  # Step 3'te zaten dahil edilenler hariç
+            )
+            if status:
+                colleague_query = colleague_query.filter(models.Ticket.status == status)
+            colleague_tickets = colleague_query.all()
+            accessible_tickets.extend(colleague_tickets)
+            logger.info(f"Meslektaş talepleri (diğer birimlere açılan): {len(colleague_tickets)}")
 
     # Aynı ticket iki kez gelmesin - unique IDs
     ticket_map = {}
@@ -387,7 +437,7 @@ async def update_ticket(
         # Triaj personeli: ya triage_user_id ile eşleşen ya da triage_department_id'deki kullanıcı
         if config.triage_user_id and current_user.id == config.triage_user_id:
             is_triage_person = True
-        elif config.triage_department_id and current_user.department_id == config.triage_department_id:
+        elif config.triage_department_id and user_in_department(current_user, config.triage_department_id):
             is_triage_person = True
     
     # Kapalı talepte sadece yöneticiler değişiklik yapabilir
@@ -412,7 +462,7 @@ async def update_ticket(
 
     logger.info(f"Ticket {ticket_id} güncellemesi - Kullanıcı: {current_user.username} (ID: {current_user.id})")
     logger.info(f"Ticket creator_id: {ticket.creator_id}, department_id: {ticket.department_id}")
-    logger.info(f"Kullanıcı department_id: {current_user.department_id}, is_admin: {current_user.is_admin}")
+    logger.info(f"Kullanıcı departmanları: {sorted(get_user_department_ids(current_user))}, is_admin: {current_user.is_admin}")
     logger.info(f"is_triage_person: {is_triage_person}")
     logger.info(f"Güncelleme verileri: {ticket_update.dict(exclude_unset=True)}")
 
@@ -428,7 +478,7 @@ async def update_ticket(
         current_user.is_admin or 
         ticket.creator_id == current_user.id or 
         ticket.assignee_id == current_user.id or
-        (current_user.department_id is not None and user_in_department(current_user, ticket.department_id)) or
+        user_in_department(current_user, ticket.department_id) or
         is_triage_person  # Triaj personeli tüm talepler üzerinde işlem yapabilir
     )
 
@@ -934,9 +984,9 @@ def download_attachment(
     ticket_id: int,
     attachment_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: models.User = Depends(get_current_user_for_download)
 ):
-    """Dosya indir"""
+    """Dosya indir - Token header'dan veya query parameter'dan alınır"""
     attachment = db.query(models.Attachment).filter(models.Attachment.id == attachment_id).first()
     
     if not attachment:
