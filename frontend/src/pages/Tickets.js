@@ -13,6 +13,7 @@ const Tickets = () => {
     search: ''
   });
   const [error, setError] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'desc' });
   const { user, token, isAuthenticated } = useAuth(); // AuthContext'ten kullanıcı bilgisini al
 
   useEffect(() => {
@@ -55,6 +56,38 @@ const Tickets = () => {
       if (!titleMatch && !idMatch) return false;
     }
     return true;
+  });
+
+  // Sıralama fonksiyonu
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return '↕';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  // Öncelik sıralama ağırlıkları
+  const priorityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+  const statusOrder = { open: 1, in_progress: 2, closed: 3 };
+
+  const sortedTickets = [...filteredTickets].sort((a, b) => {
+    const dir = sortConfig.direction === 'asc' ? 1 : -1;
+    const key = sortConfig.key;
+
+    if (key === 'id') return dir * (a.id - b.id);
+    if (key === 'title') return dir * a.title.localeCompare(b.title, 'tr');
+    if (key === 'department') return dir * (a.department?.name || '').localeCompare(b.department?.name || '', 'tr');
+    if (key === 'status') return dir * ((statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
+    if (key === 'priority') return dir * ((priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0));
+    if (key === 'is_personal') return dir * ((a.is_personal ? 1 : 0) - (b.is_personal ? 1 : 0));
+    if (key === 'is_private') return dir * ((a.is_private ? 1 : 0) - (b.is_private ? 1 : 0));
+    if (key === 'created_at') return dir * (new Date(a.created_at) - new Date(b.created_at));
+    return 0;
   });
 
   if (loading) {
@@ -142,37 +175,37 @@ const Tickets = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Başlık
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Birim
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Durum
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öncelik
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Kişiye Özel
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Özel Talep Durumu
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Oluşturulma
-                  </th>
+                  {[
+                    { key: 'id', label: 'ID' },
+                    { key: 'title', label: 'Başlık' },
+                    { key: 'department', label: 'Birim' },
+                    { key: 'status', label: 'Durum' },
+                    { key: 'priority', label: 'Öncelik' },
+                    { key: 'is_personal', label: 'Kişiye Özel' },
+                    { key: 'is_private', label: 'Özel Talep Durumu' },
+                    { key: 'created_at', label: 'Oluşturulma' },
+                  ].map(col => (
+                    <th
+                      key={col.key}
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none transition-colors"
+                      onClick={() => handleSort(col.key)}
+                    >
+                      <span className="flex items-center gap-1">
+                        {col.label}
+                        <span className={`text-xs ${sortConfig.key === col.key ? 'text-primary-600 font-bold' : 'text-gray-300'}`}>
+                          {getSortIcon(col.key)}
+                        </span>
+                      </span>
+                    </th>
+                  ))}
                   <th scope="col" className="relative px-6 py-3">
                     <span className="sr-only">İşlemler</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTickets.map((ticket) => (
+                {sortedTickets.map((ticket) => (
                   <tr
                     key={ticket.id}
                     className={ticket.status === 'closed' ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-gray-50'}
