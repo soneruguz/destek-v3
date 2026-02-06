@@ -81,7 +81,7 @@ Talebi takip etmek için: {app_url}/tickets/{ticket.id}
             <p><span class="label">⚠️ Öncelik:</span> {ticket.priority}</p>
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button blue">Talebi Görüntüle</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Talebi Görüntüle</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "blue")
@@ -111,7 +111,7 @@ Talebi incelemek için: {app_url}/tickets/{ticket.id}
             <p><span class="label purple">⚠️ Öncelik:</span> {ticket.priority}</p>
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button purple">Talebi İncele</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#667eea;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Talebi İncele</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "purple")
@@ -139,7 +139,7 @@ Talebi yönlendirmek için: {app_url}/tickets/{ticket.id}
             <p><span class="label green">🏢 Birim:</span> {ticket.department.name if ticket.department else 'Genel'}</p>
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button green">Talebi Yönlendir</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#10b981;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Talebi Yönlendir</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "green")
@@ -165,7 +165,7 @@ Görüşmeleri görmek için: {app_url}/tickets/{ticket.id}
             {comment.content}
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button green">Mesajlara Git</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#10b981;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Mesajlara Git</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "green")
@@ -193,7 +193,7 @@ Talebi görüntüle: {app_url}/tickets/{ticket.id}
             <p><span class="label">🔔 Durum:</span> {ticket.status}</p>
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button blue">Talebi Görüntüle</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#2563eb;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Talebi Görüntüle</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "blue")
@@ -216,7 +216,7 @@ Talebe git: {app_url}/tickets/{ticket.id}
             <p><span class="label orange">📄 Dosya Adı:</span> {attachment.filename}</p>
         </div>
         <p style="text-align: center;">
-            <a href="{app_url}/tickets/{ticket.id}" class="button orange">Talebi Görüntüle</a>
+            <a href="{app_url}/tickets/{ticket.id}" style="display:inline-block;margin:20px 0;padding:12px 30px;background-color:#f59e0b;color:#ffffff;text-decoration:none;border-radius:5px;font-weight:bold;" target="_blank">Talebi Görüntüle</a>
         </p>
     """
     return text, get_html_wrapper(title, html_content, "orange")
