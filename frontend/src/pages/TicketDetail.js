@@ -34,6 +34,49 @@ const TicketDetail = () => {
   });
   const [selectedImage, setSelectedImage] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [imagePan, setImagePan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  // Global paste event listener - sayfada Ctrl+V ile ekran görüntüsü yapıştırıp dosya olarak yükleme
+  useEffect(() => {
+    const handleGlobalPaste = async (e) => {
+      const clipboardData = e.clipboardData;
+      if (!clipboardData || !clipboardData.items) return;
+
+      const imageItems = Array.from(clipboardData.items).filter(item => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+
+      e.preventDefault();
+      for (const item of imageItems) {
+        const blob = item.getAsFile();
+        if (!blob) continue;
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const ext = blob.type.split('/')[1] || 'png';
+        const fileName = `ekran_goruntusu_${timestamp}.${ext}`;
+
+        const formData = new FormData();
+        formData.append('file', blob, fileName);
+
+        try {
+          await axiosInstance.post(`/tickets/${id}/attachments/`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          addToast(`Ekran görüntüsü yüklendi: ${fileName}`, 'success');
+          // Dosya listesini yenile
+          const attachmentsRes = await axiosInstance.get(`tickets/${id}/attachments/`);
+          setAttachments(attachmentsRes.data || []);
+        } catch (err) {
+          console.error('Ekran görüntüsü yükleme hatası:', err);
+          addToast('Ekran görüntüsü yüklenirken hata oluştu', 'error');
+        }
+      }
+    };
+    document.addEventListener('paste', handleGlobalPaste);
+    return () => document.removeEventListener('paste', handleGlobalPaste);
+  }, [id, addToast]);
 
   useEffect(() => {
     const fetchTicketData = async () => {
@@ -371,59 +414,53 @@ const TicketDetail = () => {
                 </div>
               )}
 
-              {/* Basit dosya listesi */}
-              <div className="space-y-3">
+              {/* Dosya ekleri grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {attachments.length > 0 ?
                   attachments.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:border-primary-400 transition-colors">
-                      <div className="flex items-center space-x-4 flex-1">
-                        {/* ÖN İZLEME ALANI */}
+                    <div key={file.id} className="group relative rounded-lg border border-gray-200 hover:border-primary-400 hover:shadow-md transition-all overflow-hidden bg-white">
+                      {/* Önizleme / İkon */}
+                      <div
+                        className="aspect-square flex items-center justify-center cursor-pointer bg-gray-50 overflow-hidden"
+                        onClick={() => {
+                          if (file.preview_url) {
+                            setSelectedImage(file);
+                            setImageZoom(1);
+                            setImagePan({ x: 0, y: 0 });
+                            setShowImageModal(true);
+                          }
+                        }}
+                        title={file.preview_url ? 'Büyütmek için tıklayın' : file.filename}
+                      >
                         {file.preview_url ? (
-                          <div className="relative group">
-                            <img
-                              src={`${API_URL}${file.preview_url}`}
-                              alt={file.filename}
-                              className="h-20 w-20 object-cover rounded-md cursor-pointer hover:shadow-xl hover:scale-110 transition-all duration-200 border-2 border-primary-200"
-                              onClick={() => {
-                                setSelectedImage(file);
-                                setShowImageModal(true);
-                              }}
-                              onError={(e) => {
-                                console.error('Resim yüklenemedi:', `${API_URL}${file.preview_url}`, e);
-                                e.target.style.display = 'none';
-                              }}
-                              onLoad={() => { }}
-                              title="Büyütmek için tıklayın"
-                            />
-                            <div className="absolute -top-8 left-0 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              Ön İZLEME VAR!
-                            </div>
-                          </div>
+                          <img
+                            src={`${API_URL}${file.preview_url}`}
+                            alt={file.filename}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
                         ) : (
-                          <div className="h-20 w-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-md flex items-center justify-center border-2 border-blue-200">
-                            <div className="text-xs text-center text-red-600">NO PREVIEW</div>
-                            <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          <div className="flex flex-col items-center justify-center text-gray-400">
+                            <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
+                            <span className="text-xs mt-1 px-2 text-center truncate w-full">{file.filename}</span>
                           </div>
                         )}
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">{file.filename}</div>
-                          <div className="text-xs text-gray-500 mt-1">{file.size_formatted} • {file.uploaded_at}</div>
-                        </div>
                       </div>
-                      <div className="flex items-center space-x-3">
+                      {/* İndir butonu - hover'da görünen overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all flex items-center justify-center py-1.5 opacity-0 group-hover:opacity-100">
                         <button
-                          onClick={() => handleAttachmentDownload(file)}
-                          className="text-sm text-primary-600 hover:text-primary-800"
+                          onClick={(e) => { e.stopPropagation(); handleAttachmentDownload(file); }}
+                          className="text-xs text-white bg-primary-600 hover:bg-primary-700 px-3 py-1 rounded-full shadow"
                         >
-                          İndir
+                          ⬇ İndir
                         </button>
                       </div>
                     </div>
                   ))
                   :
-                  <p className="text-gray-500 text-center py-4">Henüz dosya eklenmemiş</p>
+                  <p className="col-span-full text-gray-500 text-center py-4">Henüz dosya eklenmemiş</p>
                 }
               </div>
             </div>
@@ -803,45 +840,97 @@ const TicketDetail = () => {
         </div>
       )}
 
-      {/* Image Modal / Lightbox */}
+      {/* Image Modal / Lightbox - Zoomable */}
       {showImageModal && selectedImage && (
         <div
-          className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4"
-          onClick={() => setShowImageModal(false)}
+          className="fixed inset-0 z-50 bg-black bg-opacity-85 flex items-center justify-center"
+          onClick={() => { setShowImageModal(false); setImageZoom(1); setImagePan({ x: 0, y: 0 }); }}
+          onWheel={(e) => {
+            e.preventDefault();
+            setImageZoom(prev => {
+              const delta = e.deltaY > 0 ? -0.15 : 0.15;
+              const next = Math.max(0.5, Math.min(8, prev + delta));
+              if (next <= 1) setImagePan({ x: 0, y: 0 });
+              return next;
+            });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') { setShowImageModal(false); setImageZoom(1); setImagePan({ x: 0, y: 0 }); }
+          }}
+          tabIndex={0}
+          ref={(el) => el && el.focus()}
         >
           <div
-            className="relative max-w-4xl max-h-screen flex items-center justify-center"
+            className="relative flex items-center justify-center"
+            style={{ width: '90vw', height: '90vh' }}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              if (imageZoom > 1) {
+                setIsDragging(true);
+                setDragStart({ x: e.clientX - imagePan.x, y: e.clientY - imagePan.y });
+              }
+            }}
+            onMouseMove={(e) => {
+              if (isDragging && imageZoom > 1) {
+                setImagePan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+              }
+            }}
+            onMouseUp={() => setIsDragging(false)}
+            onMouseLeave={() => setIsDragging(false)}
           >
-            {/* Kapatma Butonu */}
-            <button
-              onClick={() => setShowImageModal(false)}
-              className="absolute top-0 right-0 -mt-12 text-white hover:text-gray-300 transition-colors text-3xl font-bold"
-              title="Kapat (ESC)"
-            >
-              ×
-            </button>
+            {/* Üst toolbar */}
+            <div className="absolute top-2 right-2 z-10 flex items-center space-x-2">
+              <span className="text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
+                {Math.round(imageZoom * 100)}%
+              </span>
+              <button
+                onClick={() => setImageZoom(prev => Math.min(8, prev + 0.5))}
+                className="text-white bg-black bg-opacity-50 hover:bg-opacity-75 w-8 h-8 rounded-full flex items-center justify-center text-lg"
+                title="Yakınlaştır"
+              >+</button>
+              <button
+                onClick={() => { const next = Math.max(0.5, imageZoom - 0.5); setImageZoom(next); if (next <= 1) setImagePan({ x: 0, y: 0 }); }}
+                className="text-white bg-black bg-opacity-50 hover:bg-opacity-75 w-8 h-8 rounded-full flex items-center justify-center text-lg"
+                title="Uzaklaştır"
+              >−</button>
+              <button
+                onClick={() => { setImageZoom(1); setImagePan({ x: 0, y: 0 }); }}
+                className="text-white bg-black bg-opacity-50 hover:bg-opacity-75 px-2 h-8 rounded-full flex items-center justify-center text-xs"
+                title="Sıfırla"
+              >Sıfırla</button>
+              <button
+                onClick={() => { setShowImageModal(false); setImageZoom(1); setImagePan({ x: 0, y: 0 }); }}
+                className="text-white bg-red-600 hover:bg-red-700 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold"
+                title="Kapat (ESC)"
+              >×</button>
+            </div>
 
-            {/* Görsel */}
+            {/* Görsel - zoomable & pannable */}
             <img
               src={`${API_URL}${selectedImage.preview_url}`}
               alt={selectedImage.filename}
-              className="max-w-full max-h-screen object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl select-none"
+              style={{
+                transform: `scale(${imageZoom}) translate(${imagePan.x / imageZoom}px, ${imagePan.y / imageZoom}px)`,
+                transition: isDragging ? 'none' : 'transform 0.15s ease-out',
+                cursor: imageZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in'
+              }}
+              draggable={false}
+              onClick={() => {
+                if (imageZoom <= 1) {
+                  setImageZoom(2);
+                }
+              }}
+              onDoubleClick={() => { setImageZoom(1); setImagePan({ x: 0, y: 0 }); }}
             />
 
-            {/* Alt Bilgiler */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-4 rounded-b-lg">
-              <div className="text-sm font-medium">{selectedImage.filename}</div>
-              <div className="text-xs text-gray-300">{selectedImage.size_formatted} • {selectedImage.uploaded_at}</div>
-            </div>
+            {/* Alt bilgi - sadece zoom %100 iken göster */}
+            {imageZoom <= 1 && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 text-white text-xs px-3 py-1.5 rounded-full whitespace-nowrap">
+                Scroll: Zoom • Tıkla: Yakınlaştır • Çift tıkla: Sıfırla
+              </div>
+            )}
           </div>
-
-          {/* ESC tuşu ile kapatma */}
-          {typeof window !== 'undefined' && window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && showImageModal) {
-              setShowImageModal(false);
-            }
-          })}
         </div>
       )}
     </div>

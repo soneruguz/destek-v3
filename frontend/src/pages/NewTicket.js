@@ -42,6 +42,35 @@ const NewTicket = () => {
   const [showSharingOptions, setShowSharingOptions] = useState(false);
   const editorRef = useRef(null);
 
+  // Global paste event listener - sayfanın herhangi bir yerinde Ctrl+V ile ekran görüntüsü yapıştırma
+  useEffect(() => {
+    const handleGlobalPaste = (e) => {
+      // Eğer Quill editöründe paste ediliyorsa handlePaste zaten yakalıyor
+      const target = e.target;
+      if (target.closest && target.closest('.quill-container')) return;
+
+      const clipboardData = e.clipboardData;
+      if (clipboardData && clipboardData.items) {
+        const imageItems = Array.from(clipboardData.items).filter(item => item.type.startsWith('image/'));
+        if (imageItems.length > 0) {
+          e.preventDefault();
+          imageItems.forEach(item => {
+            const blob = item.getAsFile();
+            if (blob) {
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+              const ext = blob.type.split('/')[1] || 'png';
+              const file = new File([blob], `ekran_goruntusu_${timestamp}.${ext}`, { type: blob.type });
+              setTempFiles(prev => [...prev, file]);
+              addToast('Ekran görüntüsü dosya eklerine eklendi', 'success');
+            }
+          });
+        }
+      }
+    };
+    document.addEventListener('paste', handleGlobalPaste);
+    return () => document.removeEventListener('paste', handleGlobalPaste);
+  }, [addToast]);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -98,8 +127,28 @@ const NewTicket = () => {
   };
 
   const handlePaste = (e) => {
+    // Clipboard'dan resim yapıştırma desteği (Ctrl+V ekran görüntüsü)
+    const clipboardData = e.clipboardData;
+    if (clipboardData && clipboardData.items) {
+      const imageItems = Array.from(clipboardData.items).filter(item => item.type.startsWith('image/'));
+      if (imageItems.length > 0) {
+        e.preventDefault();
+        imageItems.forEach(item => {
+          const blob = item.getAsFile();
+          if (blob) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const ext = blob.type.split('/')[1] || 'png';
+            const file = new File([blob], `ekran_goruntusu_${timestamp}.${ext}`, { type: blob.type });
+            setTempFiles(prev => [...prev, file]);
+            addToast('Ekran görüntüsü dosya eklerine eklendi', 'success');
+          }
+        });
+        return;
+      }
+    }
+
+    // Tablo yapıştırma desteği (mevcut)
     if (editorRef.current) {
-      const clipboardData = e.clipboardData;
       if (clipboardData && clipboardData.getData) {
         const html = clipboardData.getData('text/html');
 
@@ -390,8 +439,8 @@ const NewTicket = () => {
                       {isDragActive ? 'Dosyaları buraya bırakın...' : 'Dosyaları buraya sürükleyin veya dosya seçmek için tıklayın'}
                     </p>
                     <p className="mt-1 text-xs text-gray-400">
-                      Tüm dosya türleri kabul edilir<br />
-                      Maksimum dosya boyutu: {systemConfig.max_file_size_mb || 10}MB
+                      📋 Ekran görüntüsü için sayfada herhangi bir yerde <strong>Ctrl+V</strong> yapabilirsiniz<br />
+                      Tüm dosya türleri kabul edilir • Maksimum dosya boyutu: {systemConfig.max_file_size_mb || 10}MB
                     </p>
                   </div>
 
